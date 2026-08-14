@@ -1,0 +1,5 @@
+flowchart LR
+    A[Agent produces response] --> B[Response buffered as one block]
+    B --> C[Large payload sent]
+    C --> D[Browser waits for completion]
+    D --> E[User sees no meaningful progress]

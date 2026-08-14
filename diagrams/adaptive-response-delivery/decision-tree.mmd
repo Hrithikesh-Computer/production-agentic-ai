@@ -1,0 +1,8 @@
+flowchart TD
+    A[Start with the current request-response model] --> B{Need earlier visible progress?}
+    B -->|No| C[Keep full-buffer delivery]
+    B -->|Yes| D{Can we change transport?}
+    D -->|No| E[Use adaptive response filtering]
+    D -->|Yes| F{Is a full redesign acceptable?}
+    F -->|No| E
+    F -->|Yes| G[Adopt streaming or WebSockets]

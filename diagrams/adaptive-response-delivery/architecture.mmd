@@ -1,0 +1,27 @@
+flowchart LR
+    subgraph Backend[Backend]
+        A[LLM / Agent]
+        B[Response Builder]
+        C[JSON Serializer]
+        D[Adaptive Response Filter]
+    end
+
+    subgraph Transport[Transport]
+        E[Gateway]
+        F[Chunked HTTP Response]
+    end
+
+    subgraph Client[Client]
+        G[Chunk Reassembler]
+        H[Progressive Rendering]
+        I[User]
+    end
+
+    A --> B
+    B --> C
+    C --> D
+    D --> F
+    F --> E
+    E --> G
+    G --> H
+    H --> I

@@ -1,0 +1,7 @@
+flowchart TD
+    A[Chunk dispatched] --> B{Chunk received?}
+    B -->|Yes| C[Append to UI]
+    B -->|No| D[Retry missing chunk]
+    D --> E{Retry succeeds?}
+    E -->|Yes| C
+    E -->|No| F[Fall back to partial state]

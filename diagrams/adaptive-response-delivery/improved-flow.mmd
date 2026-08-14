@@ -1,0 +1,7 @@
+flowchart LR
+    A[Agent produces response] --> B[Response builder]
+    B --> C[Adaptive response filter]
+    C --> D[Chunked delivery]
+    D --> E[Client reassembles chunks]
+    E --> F[Progressive rendering]
+    F --> G[User sees early progress]
