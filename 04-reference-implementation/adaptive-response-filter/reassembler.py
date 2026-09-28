@@ -1,51 +1,130 @@
-"""
-Reassembler — buffers incoming chunk envelopes and reconstructs the
-original payload once every chunk has arrived and validated.
-
-This is the Python-side twin of client_reassembler.ts (browser side).
-It exists here mainly for testing the wire contract end-to-end and as
-a readable reference for anyone porting the contract to another
-language/runtime.
-"""
+"""Buffer one message's envelopes and reconstruct its payload when complete."""
 
 from __future__ import annotations
 
 import json
-import zlib
 from dataclasses import dataclass, field
+from typing import Mapping
 
+from envelope import (
+    MAX_ENVELOPE_CHUNKS,
+    MAX_ENVELOPE_PAYLOAD_BYTES,
+    WireEnvelope,
+    checksum,
+)
 
-def checksum(payload: bytes) -> str:
-    return format(zlib.crc32(payload), "08x")
+DEFAULT_MAX_CHUNKS = MAX_ENVELOPE_CHUNKS
+DEFAULT_MAX_PAYLOAD_BYTES = MAX_ENVELOPE_PAYLOAD_BYTES
 
 
 @dataclass
 class Reassembler:
-    total_chunks: int | None = None
-    received: dict[int, bytes] = field(default_factory=dict)
+    total_chunks: int | None = field(default=None, init=False)
+    received: dict[int, bytes] = field(default_factory=dict, init=False)
+    merge_mode: str | None = field(default=None, init=False)
+    max_chunks: int = DEFAULT_MAX_CHUNKS
+    max_payload_bytes: int = DEFAULT_MAX_PAYLOAD_BYTES
+    _received_bytes: int = field(default=0, init=False, repr=False)
+    _completed: bool = field(default=False, init=False, repr=False)
 
-    def add_chunk(self, chunk: dict) -> bytes | None:
-        sequence = chunk["sequence"]
-        payload = chunk["payload"].encode("utf-8")
+    def __post_init__(self) -> None:
+        if isinstance(self.max_chunks, bool) or not isinstance(self.max_chunks, int):
+            raise TypeError("max_chunks must be an integer")
+        if self.max_chunks <= 0:
+            raise ValueError("max_chunks must be positive")
+        if isinstance(self.max_payload_bytes, bool) or not isinstance(
+            self.max_payload_bytes, int
+        ):
+            raise TypeError("max_payload_bytes must be an integer")
+        if self.max_payload_bytes <= 0:
+            raise ValueError("max_payload_bytes must be positive")
 
-        if checksum(payload) != chunk["checksum"]:
+    def add_chunk(
+        self, chunk: WireEnvelope | Mapping[str, object]
+    ) -> bytes | None:
+        if self._completed:
+            raise ValueError(
+                "a Reassembler instance handles one message; create a new instance"
+            )
+
+        if isinstance(chunk, WireEnvelope):
+            envelope = chunk
+        else:
+            envelope = WireEnvelope.from_mapping(chunk)
+        sequence = envelope.sequence
+        payload = envelope.payload_bytes()
+
+        if envelope.total_chunks > self.max_chunks:
+            raise ValueError(
+                f"total_chunks exceeds configured maximum of {self.max_chunks}"
+            )
+        if self.total_chunks is not None and envelope.total_chunks != self.total_chunks:
+            raise ValueError("total_chunks cannot change during reassembly")
+        if self.merge_mode is not None and envelope.merge_mode != self.merge_mode:
+            raise ValueError("merge_mode cannot change during reassembly")
+
+        if checksum(payload) != envelope.checksum.lower():
             raise ValueError(f"checksum mismatch on chunk {sequence}")
 
-        self.total_chunks = chunk["total_chunks"]
+        existing = self.received.get(sequence)
+        if existing is not None:
+            if existing != payload:
+                raise ValueError(f"conflicting duplicate chunk {sequence}")
+            if len(self.received) == self.total_chunks:
+                return self._reassemble()
+            return None
+
+        if self._received_bytes + len(payload) > self.max_payload_bytes:
+            raise ValueError(
+                f"reassembled payload exceeds configured maximum of "
+                f"{self.max_payload_bytes} bytes"
+            )
+
+        if self.total_chunks is None:
+            self.total_chunks = envelope.total_chunks
+            self.merge_mode = envelope.merge_mode
         self.received[sequence] = payload
+        self._received_bytes += len(payload)
 
         if len(self.received) == self.total_chunks:
-            return self._reassemble()
+            assembled = self._reassemble()
+            self._completed = True
+            return assembled
         return None
 
     def missing(self) -> list[int]:
-        if self.total_chunks is None:
+        total_chunks = self.total_chunks
+        if total_chunks is None:
             return []
-        return [i for i in range(self.total_chunks) if i not in self.received]
+        return [
+            sequence
+            for sequence in range(total_chunks)
+            if sequence not in self.received
+        ]
 
     def _reassemble(self) -> bytes:
-        ordered = [self.received[i] for i in range(self.total_chunks)]
-        merged: dict = {}
+        total_chunks = self.total_chunks
+        assert total_chunks is not None
+        assert len(self.received) == total_chunks
+        ordered = [self.received[sequence] for sequence in range(total_chunks)]
+
+        if self.merge_mode == "concat":
+            return b"".join(ordered)
+
+        merged: dict[str, object] = {}
         for chunk_bytes in ordered:
-            merged.update(json.loads(chunk_bytes))
-        return json.dumps(merged).encode("utf-8")
+            try:
+                fragment = json.loads(chunk_bytes)
+            except (json.JSONDecodeError, UnicodeDecodeError) as error:
+                raise ValueError("invalid JSON object fragment") from error
+            if not isinstance(fragment, dict):
+                raise ValueError("json-object chunks must each contain a JSON object")
+            duplicate_keys = merged.keys() & fragment.keys()
+            if duplicate_keys:
+                raise ValueError(
+                    f"duplicate JSON object key across chunks: "
+                    f"{sorted(duplicate_keys)[0]!r}"
+                )
+            merged.update(fragment)
+
+        return json.dumps(merged, ensure_ascii=False).encode("utf-8")

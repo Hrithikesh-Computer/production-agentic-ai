@@ -1,46 +1,77 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List
-import hashlib
 
-from chunker import semantic_split
+from chunker import is_json_object, semantic_split
+from envelope import WireEnvelope
+from policy import DeliveryPolicy
 
-
-@dataclass
-class Chunk:
-    index: int
-    total_chunks: int
-    payload: str
-    checksum: str
-    is_final: bool
+Chunk = WireEnvelope
 
 
 @dataclass
 class FilterResult:
     mode: str
     payload: str
-    chunks: List[Chunk]
+    chunks: list[Chunk]
     threshold_bytes: int
 
 
+def build_envelopes(
+    payload_bytes: bytes,
+    policy: DeliveryPolicy,
+) -> list[WireEnvelope]:
+    """Split a payload and wrap each part in a validated envelope."""
+    if not policy.should_chunk(payload_bytes):
+        return [
+            WireEnvelope.from_bytes(
+                sequence=0,
+                total_chunks=1,
+                payload=payload_bytes,
+                is_final=True,
+            )
+        ]
+
+    chunk_bytes_list = semantic_split(payload_bytes, policy.max_chunk_bytes)
+    merge_mode = "json-object" if is_json_object(payload_bytes) else "concat"
+    total_chunks = len(chunk_bytes_list)
+    return [
+        WireEnvelope.from_bytes(
+            sequence=index,
+            total_chunks=total_chunks,
+            payload=chunk_bytes,
+            is_final=index == total_chunks - 1,
+            merge_mode=merge_mode,
+        )
+        for index, chunk_bytes in enumerate(chunk_bytes_list)
+    ]
+
+
 class AdaptiveResponseFilter:
-    """A delivery-layer filter that uses semantic chunking.
+    """Choose full delivery or construct validated semantic chunks."""
 
-    The policy is conservative:
-    - small payloads stay on the full-buffer path
-    - large payloads are split into structured chunks using semantic boundaries
-    - chunks are tagged with metadata for reconstruction
-    - the caller can decide whether to display them progressively or fall back
-    """
+    def __init__(
+        self,
+        threshold_bytes: int = 128_000,
+        max_chunk_bytes: int = 64_000,
+    ) -> None:
+        self.policy = DeliveryPolicy(
+            threshold_bytes=threshold_bytes,
+            max_chunk_bytes=max_chunk_bytes,
+        )
 
-    def __init__(self, threshold_bytes: int = 128_000, max_chunk_bytes: int = 64_000) -> None:
-        self.threshold_bytes = threshold_bytes
-        self.max_chunk_bytes = max_chunk_bytes
+    @property
+    def threshold_bytes(self) -> int:
+        return self.policy.threshold_bytes
+
+    @property
+    def max_chunk_bytes(self) -> int:
+        return self.policy.max_chunk_bytes
 
     def build(self, payload: str) -> FilterResult:
         payload_bytes = payload.encode("utf-8")
-        if len(payload_bytes) < self.threshold_bytes:
+        envelopes = build_envelopes(payload_bytes, self.policy)
+        if not self.policy.should_chunk(payload_bytes):
             return FilterResult(
                 mode="full",
                 payload=payload,
@@ -48,32 +79,9 @@ class AdaptiveResponseFilter:
                 threshold_bytes=self.threshold_bytes,
             )
 
-        chunks = self._chunk_payload(payload_bytes)
         return FilterResult(
             mode="chunked",
             payload=payload,
-            chunks=chunks,
+            chunks=envelopes,
             threshold_bytes=self.threshold_bytes,
         )
-
-    def _chunk_payload(self, payload_bytes: bytes) -> List[Chunk]:
-        """Chunk the payload using semantic boundaries from chunker.py."""
-        chunk_bytes_list = semantic_split(payload_bytes, self.max_chunk_bytes)
-        total_chunks = len(chunk_bytes_list)
-        chunks: List[Chunk] = []
-
-        for index, chunk_bytes in enumerate(chunk_bytes_list):
-            chunk_text = chunk_bytes.decode("utf-8", errors="replace")
-            chunk = Chunk(
-                index=index,
-                total_chunks=total_chunks,
-                payload=chunk_text,
-                checksum=self._checksum(chunk_bytes),
-                is_final=(index == total_chunks - 1),
-            )
-            chunks.append(chunk)
-
-        return chunks
-
-    def _checksum(self, payload: bytes) -> str:
-        return hashlib.sha256(payload).hexdigest()[:12]

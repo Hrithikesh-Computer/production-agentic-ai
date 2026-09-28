@@ -9,7 +9,7 @@ delivery logic itself.
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from typing import Callable
 
 
@@ -18,12 +18,6 @@ class DeliveryMetrics:
     payload_size: int
     chunk_count: int
     serialization_ms: float
-    ttfb_ms: float | None = None
-    ttlb_ms: float | None = None
-    render_ms: float | None = None
-    reassembly_ms: float | None = None
-    missing_chunks: int = 0
-    timeout_rate: float = 0.0
 
     def as_dict(self) -> dict:
         return asdict(self)
