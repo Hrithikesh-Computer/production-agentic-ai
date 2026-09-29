@@ -1,7 +1,35 @@
-flowchart LR
-    A[Agent produces response] --> B[Response builder]
-    B --> C[Adaptive response filter]
-    C --> D[Chunked delivery]
-    D --> E[Client reassembles chunks]
-    E --> F[Progressive rendering]
-    F --> G[User sees early progress]
+flowchart TB
+    subgraph Implemented[Implemented Python reference sequence]
+        A[Caller provides a complete response]
+        B[Serialize the entire response before yielding]
+        C{At or above threshold?}
+        D[Small path: AdaptiveResponseFilter returns full result; filter_response yields one concat envelope]
+        E{Top-level JSON object?}
+        F[Split object by top-level member; reject oversized member]
+        G[Split fallback text by UTF-8 code-point boundaries]
+        H[Create CRC32 envelopes with sequence, total, and merge mode]
+        I[Return full result or yield envelopes to caller]
+        J[One Reassembler validates and buffers the message]
+        J1[Rule: total_chunks must stay stable for the message; duplicate identical frames are ignored; conflicting duplicates are rejected; UTF-8 code points are never split; unsplittable values fail explicitly]
+        K{All chunks present?}
+        L[Merge object fragments or concatenate bytes]
+        M[Return complete result; no partial UI render]
+    end
+
+    subgraph Integration[Production integration described by article, not implemented]
+        N[Transport adapter and gateway]
+        O[Client protocol implementation]
+        P[Optional progressive rendering after validated state]
+    end
+
+    A --> B --> C
+    C -->|No| D --> I
+    C -->|Yes| E
+    E -->|Yes| F --> H
+    E -->|No| G --> H
+    F -. oversized element .-> Q[UnsplittableValueError]
+    G -. code point larger than cap .-> Q
+    H --> I --> J --> J1 --> K
+    K -->|No| J
+    K -->|Yes| L --> M
+    I -. caller must add transport .-> N --> O --> P

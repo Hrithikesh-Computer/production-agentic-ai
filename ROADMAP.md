@@ -174,6 +174,86 @@ Nothing is added to this structure unless something else is removed. This constr
 
 ---
 
+## Current Implemented Surface vs Future Research Context
+
+The repository contains two different kinds of material, and readers should not blur them together.
+
+Read its maturity in four layers:
+
+1. **Current:** research articles, prompts, templates, and conceptual Mermaid diagrams.
+2. **Implemented reference slice:** local Python policy, chunking, envelopes, CRC32 checksums, reassembly, tests, CI, static checks, and demo.
+3. **Future reference extensions:** optional experiments or adapters, added only when a specific article and reproducible test justify them.
+4. **Potential production architecture:** servers, models, databases, queues, clients, telemetry backends, and deployment systems discussed as context only until code, dependencies, tests, and CI implement them.
+
+### Current implemented surface
+
+The code that is actively present and testable in the repo today is intentionally small and local. It consists primarily of the Python package under `04-reference-implementation/adaptive-response-filter/` and the tests for that package. This is the only place where the repository currently implements a concrete wire-contract, chunking policy, checksum validation, and reassembly logic.
+
+At the moment, the local implementation includes:
+
+- a validated `WireEnvelope` contract and CRC32 checksum helper
+- a `DeliveryPolicy` that decides whether to chunk
+- a `semantic_split()`/`_fixed_size_split()` chunking path
+- a bounded single-message `Reassembler`
+- a small demo script and pytest suite
+
+This local implementation is deliberately not a full runtime stack. It does not require FastAPI, Pydantic, Redis, Postgres, a browser client, or a TypeScript service to run the tests and demo in this repository. The checked-in pytest suite and demo run against the local Python implementation only; no database, queue, HTTP service, or external transport layer is required for the current execution boundary.
+
+### Broader ecosystem ideas and future research context
+
+The following technologies and architectures may appear in the article writing, designs, or roadmap discussions because they are real engineering contexts that shape agentic production systems, but they are not active requirements of the current repository implementation:
+
+- FastAPI or other web service runtimes
+- Pydantic models and request validation layers
+- Redis or other external state stores
+- Postgres or other durable persistence layers
+- message queues, brokers, or stream infrastructure
+- TypeScript client SDKs or browser transport code
+- progressive UI rendering and transport adapters
+- authenticated transport security or end-to-end encryption
+
+These ideas belong in the conceptual or future-facing portion of the project, not in the current local execution contract. They are research context, design vocabulary, or future integration directions. They should be treated as optional ecosystem patterns, not as repository dependencies required to run the reference slice.
+
+### Systemic Context vs. Active Dependencies
+
+This repository should be read as a documentation-led engineering knowledge base with a narrow local implementation slice, not as a monorepo for a live service stack.
+
+The active local dependencies are intentionally minimal:
+
+- Python standard library for the protocol logic
+- pytest for the executable tests
+- ruff and mypy for linting and static checks
+- the checked-in source modules under `04-reference-implementation/adaptive-response-filter/`
+
+The following are systemic context or future research directions rather than active runtime requirements for the current repo:
+
+- FastAPI, Starlette, or other HTTP servers
+- Pydantic, dataclasses-driven API models, or browser-side schema validation
+- Redis, Postgres, Kafka, or queue-backed persistence
+- TypeScript client code such as `client_reassembler.ts`
+- browser rendering, progressive UI state machines, or transport-level retries
+- LLM provider SDKs and telemetry toolchains that belong in a larger deployed system
+
+This distinction matters because the repository's executable boundary is intentionally small: readers are meant to inspect the wire contract, chunk semantics, checksum validation, and bounded reassembly in local Python code without needing a database, queue, or external service runtime.
+
+### Systemic Dependencies & Future Research Context
+
+This repository does not currently contain a deployment-ready agent service. It is not a monorepo for a production platform. The article set may discuss systems that depend on external services, but those services are not part of the local execution environment necessary to run the repository's tests.
+
+When a diagram, article, or architectural discussion references a network boundary, queue, browser, store, or backend dependency, that reference should be read as:
+
+- conceptual architecture or production system context, or
+- a proposed extension beyond the current repository implementation, not
+- a currently required runtime dependency for this local codebase.
+
+A rule for future work:
+
+> If a dependency is required to make the local tests or demo run, it belongs in the current implementation boundary. If it is only required in a production deployment or a future research prototype, it belongs in the future context section.
+
+This keeps the repository honest: the local Python implementation verifies a narrow and useful protocol idea, while the broader ecosystem remains a larger engineering field to investigate later.
+
+---
+
 ## Writing Philosophy
 
 Articles do not explain what a pattern is. They explain:
@@ -356,13 +436,14 @@ Architecture Decision Records live alongside the article that produced them rath
 
 ## Reference Implementation
 
-The repository maintains one evolving project rather than a collection of unrelated demos.
+The repository maintains a small, checked-in reference implementation rather than a collection of unrelated demos.
 
 ```
-production-agent-reference
+04-reference-implementation/
+└── adaptive-response-filter/
 ```
 
-**Technology stack:**
+**Intended ecosystem for future reference modules (not the current installed stack):**
 
 - Python
 - FastAPI
@@ -374,9 +455,30 @@ production-agent-reference
 - Docker
 - GitHub Actions
 
+These are technologies that future modules may evaluate where an article needs them. Their appearance here does not mean that current tests require the services or packages. The current implementation inventory and runtime prerequisites are maintained in the following section.
+
 Each module in the reference implementation demonstrates one engineering lesson and is added in the same publication cycle as the article that motivates it — the implementation is never a separate, multi-month build phase disconnected from the writing.
 
 Every module must solve one documented production problem drawn from the article it accompanies. A concept demonstration that cannot be measured against a before-and-after benchmark is not sufficient for inclusion.
+
+## Systemic Dependencies & Future Research Context
+
+This repository contains engineering articles and a small executable reference slice; it is not currently a production service or a deployed runtime. Use the checked-in package configuration and CI workflow as the source of truth for what can be run today.
+
+### Implemented locally
+
+- The checked-in runtime code is the standard-library Python module under `04-reference-implementation/adaptive-response-filter/`. `pyproject.toml` declares Python `>=3.10` and no runtime package dependencies.
+- The optional `dev` extra supplies pytest, Ruff, and mypy. Setuptools builds the project metadata; it does not turn the flat reference files into a production service package.
+- GitHub Actions runs on Ubuntu with Python 3.10, installs the development extra, then runs Ruff, mypy, pytest, and the standalone demo.
+- Articles and diagrams are Markdown and Mermaid source. They do not require local database, model-serving, or transport services.
+
+### Not active local dependencies
+
+FastAPI, LangGraph, Pydantic, Redis, PostgreSQL, OpenTelemetry, Docker, and an LLM provider are ecosystem options and future research context in this roadmap and in authoring prompts. They are not imported or started by the current reference implementation, and no Redis/PostgreSQL containers or credentials are needed to run the current tests.
+
+The response-delivery article also describes a browser client, HTTP gateway, retry/timeout behavior, progressive UI rendering, and a TypeScript reassembler. Those are production-system context or future integration work, not checked-in components. The current wire-envelope code is a deliberately small teaching contract: it uses CRC32 for accidental-corruption checks (not sender authentication), supports one message per reassembler instance, and omits transport-level retry, timeout, authentication, and client rendering policy. Its limitations are documented in `04-reference-implementation/README.md` and the relevant article.
+
+When adding a future dependency, service, or client, update this inventory in the same change as its package configuration, local setup, CI, and article boundary. Mentioning a technology as a trade-off or research subject is not a declaration that it is a required dependency.
 
 ---
 

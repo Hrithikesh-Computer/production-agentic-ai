@@ -1,5 +1,10 @@
 flowchart LR
-    A[Agent produces response] --> B[Response buffered as one block]
-    B --> C[Large payload sent]
-    C --> D[Browser waits for completion]
-    D --> E[User sees no meaningful progress]
+    subgraph ArticleBaseline[Production article baseline: conceptual, not repository runtime]
+        A[Production agent produces response] --> B[Response serialized as one block]
+        B --> C[HTTP response buffered and sent]
+        C --> D[Browser parses complete response]
+        D --> E[User sees content after parse and render]
+    end
+
+    F[Repository Python reference begins with an already available response; it does not implement a browser, gateway, server, queue, database, or progressive UI; see architecture.mmd]
+    G[Protocol note: receiver rejects changing total_chunks metadata, duplicate conflicts, UTF-8 boundary violations, and oversized unsplittable values in the local slice]

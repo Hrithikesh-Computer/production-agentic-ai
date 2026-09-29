@@ -1,27 +1,39 @@
 flowchart LR
-    subgraph Backend[Backend]
-        A[LLM / Agent]
-        B[Response Builder]
-        C[JSON Serializer]
-        D[Adaptive Response Filter]
+    subgraph Ref[Implemented Python reference slice]
+        A[Python caller supplies response]
+        B[Serialize complete response in memory]
+        C{Payload meets byte threshold?}
+        D[Small path: AdaptiveResponseFilter returns full result; filter_response yields one concat envelope]
+        E{Large payload is JSON object?}
+        F[Split top-level object members]
+        G[Split valid UTF-8 at code-point boundaries]
+        H[Create CRC32 envelopes with sequence, total, merge mode]
+        I[Return full result or yield envelope objects and mappings]
+        J[Per-message Reassembler validates CRC32, index, total, mode, and quotas]
+        J1[Contract guard: total_chunks cannot change mid-message; duplicate identical frames are ignored; conflicting duplicates are rejected; one Reassembler handles one message; UTF-8 boundaries are preserved]
+        K{All declared chunks received?}
+        L[Merge complete JSON object fragments]
+        M[Concatenate complete payload bytes]
+        N[Return complete reconstructed bytes]
+        O[Reject unsplittable element with UnsplittableValueError]
     end
 
-    subgraph Transport[Transport]
-        E[Gateway]
-        F[Chunked HTTP Response]
+    subgraph Future[Production integration not implemented here]
+        P[HTTP writer or transport adapter]
+        Q[Gateway and client decoder]
+        R[Progressive user interface]
     end
 
-    subgraph Client[Client]
-        G[Chunk Reassembler]
-        H[Progressive Rendering]
-        I[User]
-    end
-
-    A --> B
-    B --> C
-    C --> D
-    D --> F
-    F --> E
-    E --> G
-    G --> H
-    H --> I
+    A --> B --> C
+    C -->|Below threshold| D --> I
+    C -->|At or above threshold| E
+    E -->|Yes| F --> H
+    E -->|No| G --> H
+    F --> O
+    G --> O
+    H --> I --> J --> J1 --> K
+    K -->|No, keep buffering| J
+    K -->|Yes, json-object mode| L --> N
+    K -->|Yes, concat mode| M --> N
+    I -. envelope handoff requires an adapter .-> P
+    P --> Q --> R

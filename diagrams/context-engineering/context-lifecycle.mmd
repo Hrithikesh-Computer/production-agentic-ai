@@ -1,0 +1,18 @@
+flowchart LR
+    A[User / Tool / System] --> B[Acquire]
+    B --> C[Classify]
+    C --> D[Score]
+    D --> E[Represent]
+    E --> F[Preserve or Transform]
+    F --> G[Externalize]
+    G --> H[Retrieve]
+    H --> I[Assemble]
+    I --> J[Model Call]
+    J --> K[Observe]
+    K --> L[Re-evaluate]
+    L --> B
+    F --> M[Discard]
+    G --> N[Memory / Storage]
+    H --> N
+    N --> O[Active Context]
+    O --> I

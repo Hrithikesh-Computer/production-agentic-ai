@@ -8,7 +8,7 @@ def build_sample_payload(size: int) -> str:
 
 
 if __name__ == "__main__":
-    filter = AdaptiveResponseFilter(threshold_bytes=2_000, max_chunk_chars=400)
+    filter = AdaptiveResponseFilter(threshold_bytes=2_000, max_chunk_bytes=400)
 
     small_payload = build_sample_payload(300)
     large_payload = build_sample_payload(3_000)
@@ -16,8 +16,18 @@ if __name__ == "__main__":
     small_result = filter.build(small_payload)
     large_result = filter.build(large_payload)
 
-    print("Small payload ->", small_result.mode, "size=", len(small_payload.encode("utf-8")))
-    print("Large payload ->", large_result.mode, "chunks=", len(large_result.chunks))
+    print(
+        "Small payload ->",
+        small_result.mode,
+        "size=",
+        len(small_payload.encode("utf-8")),
+    )
+    print(
+        "Large payload ->",
+        large_result.mode,
+        "chunks=",
+        len(large_result.chunks),
+    )
 
     if large_result.chunks:
         first_chunk = large_result.chunks[0]

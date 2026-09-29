@@ -17,5 +17,6 @@ Push back on the following, specifically:
 4. **The trade-offs.** Is there a real cost to the recommended approach that the draft is underselling or leaving out? What would someone who chose differently say in their own defense?
 5. **The confidence level.** Find every sentence that states something with more certainty than the evidence in the draft actually supports. List them.
 6. **The scope.** Does any paragraph drift into explaining a general engineering concept for its own sake, rather than in direct service of the Agentic AI point being made?
+7. **Implementation boundary.** Does the draft distinguish repository code and reproducible results from conceptual architecture, future work, and unverified historical claims?
 
 Do not soften this. If the draft is genuinely solid, say so plainly and explain why it held up — but earn that conclusion by actually trying to break it first.

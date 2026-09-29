@@ -19,5 +19,6 @@ Answer each of the following:
 6. Is every section from the article template present, either filled in or explicitly marked as not applicable?
 7. Is there any language, number, or claim that reads as unsupported or fabricated — something stated with confidence but not backed by the evidence in the draft itself?
 8. Does anything in the draft risk identifying a client, employer, or specific internal system, even indirectly?
+9. Does the draft distinguish what is implemented and reproducible in the repository from conceptual or future architecture and historical evidence that cannot be reproduced here?
 
 End with a single verdict: **Ready to publish**, **Needs revision** (list exactly what's missing), or **Out of scope** (explain why).

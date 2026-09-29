@@ -12,6 +12,7 @@ Evidence already gathered (experiment results, benchmark numbers, production fai
 
 Requirements:
 
+- Treat checked-in source, tests, project configuration, and CI as the authority for what is implemented. Label broader architecture as conceptual or future work, and do not imply that a described component exists locally unless it is present in the repository.
 - Follow this exact section order: Decision Summary, Problem, Motivation, Hypothesis, Background, Why the Obvious Solution Fails, Architecture, Trade-offs, Failure Modes, Reference Implementation, Experiment, Benchmark, Observations, Decision, Interview Questions, Further Reading.
 - The Decision Summary is three to five sentences, written for a CTO or engineering manager who will read nothing else. State the problem, the recommendation, the business impact, and the cost of getting it wrong. No jargon, no code.
 - "Why the Obvious Solution Fails" must describe approaches that seemed reasonable at the time, not strawmen invented to make the final answer look better.

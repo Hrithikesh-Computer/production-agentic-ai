@@ -1,0 +1,90 @@
+# Python bytecode and interpreter caches
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+
+# Virtual environments and local environment files
+.venv/
+venv/
+env/
+ENV/
+.venv*/
+.env
+.env.*
+!.env.example
+
+# Python packaging and build output
+build/
+dist/
+*.egg-info/
+pip-wheel-metadata/
+.eggs/
+*.whl
+
+# Test, coverage, and static-analysis artifacts
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+.hypothesis/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+xmlcov/
+junit.xml
+.tox/
+.nox/
+
+# Local execution/runtime outputs
+*.sqlite3
+*.db
+*.log
+*.pid
+*.sock
+
+# Research notes, scratch files, and local working artifacts
+scratch/
+notes/
+local/
+tmp/
+temp/
+artifacts/
+reports/
+output/
+_site/
+site/
+
+# Notebook and research scratch files
+.ipynb_checkpoints/
+*.ipynb
+
+# Editor and IDE state
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+*.code-workspace
+
+# Operating-system files and temporary artifacts
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+*.orig
+*.rej
+
+# Local package manager / interpreter metadata
+.python-version
+pip-selfcheck.json
+
+# Project-local generated docs and static site output
+_site/
+site/

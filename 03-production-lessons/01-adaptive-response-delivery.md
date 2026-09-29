@@ -5,9 +5,11 @@
 **Reading time:** ~14 minutes
 **Difficulty:** Advanced
 **Category:** Production Engineering
-**Status:** Production Case Study
+**Status:** Generalized production investigation; local measurements are illustrative and not reproducible from this repository
 
 > **Note:** This article abstracts an engineering investigation performed while building a production AI application. Architecture, benchmarks, payload shapes, and implementation details have been simplified and generalized to preserve the reasoning while avoiding exposure of proprietary specifics. Numbers labeled "illustrative" come from a local proxy benchmark, not a production deployment. This is an engineering narrative, not a formal experimental study or a claim of novel research.
+
+> **Implementation boundary:** The production investigation described here is broader than the executable code in this repository. The Python reference is a pedagogical slice for policy, chunk splitting, envelope validation, and bounded reassembly. It is not the deployed system and does not implement the model, HTTP writer, gateway, browser/TypeScript client, retries, timeout recovery, or progressive rendering described in the production narrative. Article-level production observations and illustrative benchmark values must not be read as results produced by the local demo or tests.
 
 ## Executive Summary
 
@@ -151,6 +153,8 @@ More server capacity, compression, or waiting for network improvements target th
 
 **Benchmark setup (illustrative, not production):** 20 warmup requests (discarded), 50 measured requests per scenario, median and P95 reported, Chrome 138, HTTP/1.1, local proxy host, 250 KB structured JSON payload. These are representative values to ground the discussion; full details are in Appendix E.
 
+> Important boundary note: the numerical values in Experiment A, Experiment B, and Appendix E are illustrative operating examples, not a formal production benchmark. This repository does not include the original benchmark runner, captured trace data, or a measured production dataset. The article uses a local model scenario to explain the latency pattern and the design trade-off, not to claim a generalizable production result.
+
 ## Production Constraints
 
 Browser-based client on existing HTTP request-response semantics, no assumed migration to WebSockets, backward-compatible API contract, incremental low-risk rollout, full observability. These constraints deferred WebSockets, Kafka, a gRPC migration, HTTP/3 migration, a frontend rewrite, and a server redesign — not because they were bad ideas, but because they were more change than the observed problem justified.
@@ -240,6 +244,8 @@ The reference implementation (`chunker.py`) demonstrates the JSON-boundary and f
 
 ## Architecture
 
+The following architecture and sequence diagrams describe the production design discussed by the article. The repository's smaller, actual Python sequence is shown in `diagrams/adaptive-response-delivery/architecture.mmd`; its boundary ends at yielded envelopes and reconstructed bytes, before a transport or user interface.
+
 **Before:**
 
 ```mermaid
@@ -289,15 +295,11 @@ Additional diagrams (client state machine, trace timeline, rollout stages) are i
 
 ### Reference implementation
 
-```text
-reference/
-  adaptive-response-delivery/
-    policy.py, chunker.py, filter.py, reassembler.py, metrics.py, middleware.py
-    client_reassembler.ts
-    tests/test_chunker.py, tests/test_reassembler.py
-```
+The checked-in implementation lives in `04-reference-implementation/adaptive-response-filter/`. `policy.py` applies byte thresholds, `chunker.py` splits top-level JSON object members or valid UTF-8 text, `envelope.py` defines the shared CRC32 wire envelope, `filter.py` and `middleware.py` are the two producer surfaces, and `reassembler.py` validates and reconstructs one message. No `client_reassembler.ts` is present in this repository.
 
-Each chunk carries a reconstruction contract: `sequence`, `total_chunks`, `checksum`, `is_final`, `payload`. The client only exposes completed structures to the UI; missing chunks stay buffered until retransmission or timeout. See Appendix C for the reassembly algorithm and Appendix D for the client state machine.
+The local sequence serializes the whole response before it yields envelopes. The reassembler buffers until all chunks arrive, then returns reconstructed bytes (or merged JSON-object bytes); it does not progressively render content. Chunk totals and indexes are checked, changing totals and conflicting duplicate frames are rejected, identical duplicates during an incomplete assembly are idempotent, and payload/count limits are enforced. `merge_mode="concat"` preserves arrays, scalar JSON, and text without parsing individual fragments as JSON. `merge_mode="json-object"` is reserved for independently valid object fragments.
+
+The contract is intentionally educational. CRC32 detects accidental corruption but is not authentication. Retries, timeouts, partial UI state, transport framing, and multi-message multiplexing belong to an integration layer that is not implemented here. Appendix D's client state machine is conceptual production guidance, not behavior provided by `Reassembler`.
 
 ### Design principles
 
@@ -400,21 +402,27 @@ Modern LLM serving research has dramatically improved how quickly models generat
   "total_chunks": 3,
   "checksum": "9a3f1c02",
   "is_final": false,
+  "merge_mode": "concat",
   "payload": "..."
 }
 ```
 
+The checksum value is an illustrative CRC32-shaped example. The repository's `WireEnvelope` computes the actual CRC32 over each UTF-8 payload fragment; CRC32 does not establish who sent the frame.
+
 ## Appendix C — Reassembly Algorithm
 
-1. Buffer incoming chunks keyed by `sequence`.
-2. Verify each chunk's `checksum` on arrival; reject and request resend on mismatch.
-3. Track `total_chunks` from the first chunk received.
-4. Once `len(buffered) == total_chunks`, merge in sequence order.
-5. Only expose the merged, validated structure to the UI — never a partial merge.
+1. Create one `Reassembler` per message. It is not a multi-message session manager.
+2. Validate envelope types, positive `total_chunks`, the sequence range, `is_final`, merge mode, checksum format, and configured chunk/payload bounds.
+3. Fix the expected `total_chunks` and merge mode from the first accepted frame; reject later frames that change either value.
+4. Verify CRC32 before storing payload. An identical duplicate is ignored while the message is incomplete; a duplicate sequence with different content is rejected.
+5. Wait until all sequence indexes are present, then either concatenate `concat` fragments as bytes or parse and merge `json-object` fragments by top-level key.
+6. The method returns bytes only when complete. It does not request a resend or expose partial data to a UI; transport retry, timeout, and rendering policy are not implemented.
 
-See `reassembler.py`'s `Reassembler` class for a runnable, tested version.
+See `04-reference-implementation/adaptive-response-filter/reassembler.py` for the runnable receiver.
 
-## Appendix D — Client State Machine and Failure Modes
+## Appendix D — Conceptual Client State Machine and Failure Modes
+
+The following state machine describes a possible production client integration. It is not implemented by the Python reference code; in particular, no timeout, retry, or fallback-to-partial-state behavior is present locally.
 
 ```mermaid
 stateDiagram-v2

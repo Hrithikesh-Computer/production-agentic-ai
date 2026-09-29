@@ -51,7 +51,7 @@ Every article uses the exact heading set and order defined in `templates/article
 ## Code Block Conventions
 
 - Every code block is tagged with its language for syntax highlighting (` ```python `, ` ```bash `, ` ```mermaid `) — never a bare ` ``` `.
-- Code shown inline in an article is a minimal, working excerpt that illustrates the specific point being made — not the full contents of a file. The full implementation lives in `production-agent-reference` and is linked to, not pasted in full.
+- Code shown inline in an article is a minimal, working excerpt that illustrates the specific point being made — not the full contents of a file. The full implementation lives in the local reference stack under `04-reference-implementation/` and is linked to, not pasted in full.
 - Every non-trivial code excerpt has a one-line comment or preceding sentence explaining what it demonstrates, not just what it does.
 - Shell commands intended to be run are shown as complete, copyable sequences (as in the setup commands in this repository), not fragments requiring the reader to infer missing steps.
 - Placeholder values in code or commands use brackets (`[VALUE]`) consistently, matching the convention already used in `prompts/`.

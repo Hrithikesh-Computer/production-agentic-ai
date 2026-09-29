@@ -18,4 +18,4 @@ Design a benchmark that includes:
 - **Metrics**: the specific, named metrics being measured (e.g., p50/p95 latency, token count, cost per request, accuracy against a labeled set) — not vague terms like "performance."
 - **Method**: the exact steps to run this benchmark, in enough detail that someone else could reproduce it without asking a follow-up question.
 
-Do not fabricate results. If this prompt is being used before the benchmark has actually been run, output only the design (Objective through Method) and stop — Results, Analysis, Trade-offs, and Conclusion are filled in afterward from real output, never generated in advance.
+Treat checked-in code and configuration as the source of truth for the component under test. Do not assume a benchmark runner, server, client, telemetry backend, or production dependency exists unless it is present. Do not fabricate results. If this prompt is being used before the benchmark has actually been run, output only the design (Objective through Method) and stop — Results, Analysis, Trade-offs, and Conclusion are filled in afterward from real output, never generated in advance.

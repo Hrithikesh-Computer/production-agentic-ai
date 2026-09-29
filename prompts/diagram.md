@@ -13,6 +13,7 @@ Key failure point being illustrated, if any: [FAILURE POINT]
 
 Requirements:
 
+- Identify which components are implemented in the repository and which are conceptual or future architecture. Draw the current executable path separately from production integration when both matter; an article's architecture is not proof that the code exists.
 - Output valid Mermaid syntax only, ready to paste into a `.md` file and into `diagrams/`.
 - Keep it as simple as it can be while remaining accurate — this is a teaching diagram, not a complete system inventory.
 - If illustrating a failure mode, mark the failure point clearly (e.g., a distinct node style, label, or annotation) rather than leaving the reader to infer where it occurs.

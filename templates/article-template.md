@@ -28,7 +28,7 @@
 
 ## Reference Implementation
 
-*Link to the corresponding module in `production-agent-reference`.*
+*Link to the corresponding module in the local reference implementation under `04-reference-implementation/`.*
 
 ## Experiment
 

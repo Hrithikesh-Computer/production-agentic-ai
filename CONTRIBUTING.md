@@ -20,7 +20,7 @@ If you're unsure, open an issue describing the idea in two or three sentences be
 
 - A new article following the [Article Template](./ROADMAP.md#article-template)
 - An improvement, correction, or benchmark refresh to an existing article
-- A new module or fix to the reference implementation, `production-agent-reference`
+- A new module or fix to the local reference implementation under `04-reference-implementation/`
 - A new or updated diagram in `diagrams/`
 - A correction to an Architecture Decision Record
 

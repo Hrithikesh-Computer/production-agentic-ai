@@ -1,0 +1,18 @@
+sequenceDiagram
+    participant U as User
+    participant A as Agent
+    participant C as Context Manager
+    participant M as Memory Store
+    participant T as Tool
+
+    U->>A: Task
+    A->>C: Acquire request + state
+    C->>C: Classify and score context
+    C->>M: Retrieve relevant memory
+    C->>T: Request active tool output
+    T-->>C: Tool result
+    C->>C: Compress / externalize / stub as needed
+    C->>A: Active context bundle
+    A->>A: Reason and act
+    A->>C: Observe decisions and constraints
+    C->>M: Persist non-derivable state
