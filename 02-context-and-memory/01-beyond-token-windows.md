@@ -9,15 +9,15 @@
 
 ## Decision Summary
 
-The real production problem is not that an agent has too many tokens in a single prompt; it is that context has no lifecycle and therefore accumulates without explicit rules for preservation, transformation, retrieval, or discard. We recommend treating context as a managed resource: classify information by importance, recoverability, and derivability, then assemble only the minimal active bundle required for the next task. The business impact is that systems become more reliable, cheaper, and easier to reason about because they stop depending on brittle historical leakage and expensive full-context rebuilds. The cost of getting this wrong is recurring failures such as hallucinated decisions, repeated rejected plans, stale memory overriding the present task, and prompt-cache churn that makes a model feel unstable under load.
+The real production problem is not that an agent has too many tokens in a single prompt; it is that context has no lifecycle and therefore accumulates without explicit rules for preservation, transformation, retrieval, or discard.
 
 ## Problem
 
-Production agents are often evaluated by the size of their context window, yet the actual failure mode is usually not the maximum token count. It is the absence of a disciplined context lifecycle. Information enters the system from the user, tools, retrieved documents, earlier turn history, memory stores, and intermediate reasoning, but there is rarely a clear policy for what should survive the current task, what should be compressed, what should be externalized, and what should be forgotten.
+Production agents are often evaluated by the size of their context window, yet the actual failure mode is usually not the maximum token count. It is the absence of a disciplined context lifecycle.
 
-This creates several recurring problems. First, a system may keep too much information in the active prompt and degrade reasoning quality with token noise. Second, it may keep too little, losing causal constraints that were critical to earlier decisions. Third, it may preserve information that is recoverable from an authoritative source while wasting precious prompt budget on a low-value duplicate. Fourth, it may preserve testimonial information — preferences, trade-offs, and assumptions expressed during a task — without recognizing that this is exactly the kind of state that can be lost in naive compression and then reintroduced later as a repeated failure mode.
+This creates several recurring problems. First, a system may keep too much information in the active prompt and degrade reasoning quality with token noise. Second, it may keep too little, losing critical constraints or historical decisions. Third, a system may preserve the wrong information too long, causing stale memory to override fresh task state.
 
-The result is a production condition that feels almost always the same: the agent appears capable in short interactions, but across longer sessions it becomes inconsistent, stale, repetitive, or expensive to run.
+The result is a production condition that feels almost always the same: the agent appears capable in short interactions, but across longer sessions it becomes inconsistent, stale, repetitive, or overconfident in its memory.
 
 ## Motivation
 
@@ -32,19 +32,19 @@ In demos, context is often simplified into a single conversation transcript. In 
 - intermediate execution artifacts
 - externalized summaries and structured state
 
-Each stream has a different lifetime, mutability, and cost of loss. A single-window abstraction ignores these differences and treats all context as if it were one long, homogeneous message. That is convenient for prompting but wrong for engineering.
+Each stream has a different lifetime, mutability, and cost of loss. A single-window abstraction ignores these differences and treats all context as if it were one long, homogeneous message. That is not how production agents behave.
 
-The motivation for this article comes from a common production pattern: improvements in model quality, retrieval quality, or tool use do not help if the agent repeatedly reintroduces stale assumptions, loses important constraints, or rebuilds context expensively at every step. The system then becomes a prompt assembly problem masquerading as an intelligence problem.
+The motivation for this article comes from a common production pattern: improvements in model quality, retrieval quality, or tool use do not help if the agent repeatedly reintroduces stale assumptions or loses important constraints after a few turns.
 
 ## Hypothesis
 
-Our working hypothesis is that production agents should manage context as an explicit lifecycle problem rather than as a token-budget problem. The right design is not “more memory” or “less memory”; it is “the cheapest representation that preserves the information necessary for future decisions.”
+Our working hypothesis is that production agents should manage context as an explicit lifecycle problem rather than as a token-budget problem. The right design is not “more memory” or “less memory.” The right design is a retention and retrieval policy that matches the type and value of the information.
 
-This changes the engineering question from “How many tokens fit in the window?” to “What information should an agent carry forward, retrieve, compress, externalize, discard, or reconstruct—and in what representation, for how long, and at what cost?”
+This changes the engineering question from “How many tokens fit in the window?” to “What information should an agent carry forward, retrieve, compress, externalize, discard, or reconstruct?”
 
 ## Background
 
-The early literature on LLM systems focused heavily on the context window and prompt length. That framing is useful for understanding model limits, but it is incomplete for production systems. In a real agent, context is not just a single static prompt; it is a moving state, and state has lifecycle properties: acquisition, classification, selection, transformation, persistence, retrieval, and disposal.
+The early literature on LLM systems focused heavily on the context window and prompt length. That framing is useful for understanding model limits, but it is incomplete for production systems. In practice, the agent's working memory is a mixture of stable policy, volatile task state, tool outputs, external evidence, and decisions that may need to be retained or discarded differently.
 
 A practical production context model separates the information into several classes:
 
@@ -61,11 +61,11 @@ A practical production context model separates the information into several clas
 11. Operational state: agent execution metadata, tool invocation status, intermediate checkpoints, and retry state.
 12. Derived evidence: facts reconstructed from authoritative sources rather than preserved as a transcript of a prior interaction.
 
-These categories are not interchangeable. A stable instruction should not be treated like a volatile tool result. A user preference may deserve a long retention policy, while a temporary retrieval result may be safely discarded once it has been used to form a decision.
+These categories are not interchangeable. A stable instruction should not be treated like a volatile tool result. A user preference may deserve a long retention policy, while a temporary retrieval result may be discarded after the tool call finishes.
 
-It is important to distinguish what in this article is a well-established design observation and what is still a hypothesis. The established point is that context should be classified by function, lifetime, recoverability, and mutability rather than by a single prompt window. The more speculative part is the specific retention-policy model proposed here: that context should be moved between representations and locations based on a score over recoverability, derivability, information-loss cost, and current-task relevance. That model is useful as a design framework, but it should be treated as an engineering proposal rather than as a universal law.
+It is important to distinguish what in this article is a well-established design observation and what is still a hypothesis. The established point is that context should be classified by function and retention policy, not by a single token count.
 
-The most important distinction is between derivable and testimonial information. Derivable information can usually be recovered from a trusted source such as a tool result, a document, a database, or an artifact store. Testimonial information exists primarily in the interaction history itself: a preference expressed by a user, a decision rationale, a rejected alternative, a constraint negotiated in an earlier turn, or an assumption that was established during execution. The same fact may be derivable in one system and testimonial in another. The right question is not simply whether the information is still in the conversation, but whether it is recoverable outside the conversation and whether losing it would create a recurring failure mode.
+The most important distinction is between derivable and testimonial information. Derivable information can usually be recovered from a trusted source such as a tool result, a document, a database, or a fresh retrieval. Testimonial information captures decisions, trade-offs, rejections, constraints, and rationale; it often matters even when a simpler summary would be cheaper.
 
 ## Why the Obvious Solution Fails
 
@@ -73,23 +73,23 @@ Several solutions appear reasonable when a team first encounters this problem, a
 
 ### Full conversation history
 
-The simplest design is to append the entire conversation and keep the user-facing transcript in the active prompt. This preserves richness, but it creates a scale problem. Every new turn adds more tokens, more duplicated facts, and more opportunities for stale assumptions to re-enter the reasoning path. Long histories also degrade the signal-to-noise ratio: a relevant fact may be buried under repeated restatements, tool chatter, and harmless but low-value conversational filler.
+The simplest design is to append the entire conversation and keep the user-facing transcript in the active prompt. This preserves richness, but it creates a scale problem. Every new turn adds more tokens, more noise, and more stale assumptions into the current reasoning state.
 
 ### Sliding-window context
 
-A sliding window is often the first operational improvement. It keeps the most recent turns and drops older ones. This helps with latency and token consumption, but it fails when the critical information is not the most recent. A user preference, a rejected alternative, or a constraint discovered in an earlier phase may not be visible in the most recent window even though it determines the right next action. Recency is a poor proxy for causal relevance.
+A sliding window is often the first operational improvement. It keeps the most recent turns and drops older ones. This helps with latency and token consumption, but it fails when the critical information is not the most recent. Long-running tasks often need earlier constraints, prior decisions, or rejected alternatives preserved even when they are no longer near the end of the transcript.
 
 ### Summarization
 
-Summarization appears to solve the problem by compressing old turns into a shorter memory. The problem is that compression is lossy and silent. It can remove a rejected alternative that should remain visible as a warning, a constraint that was later overridden, or a rationale that the agent would need to avoid repeating a bad decision. In short, “summary” is often a location where important anti-patterns get erased.
+Summarization appears to solve the problem by compressing old turns into a shorter memory. The problem is that compression is lossy and silent. It can remove a rejected alternative that should remain accessible, or a critical constraint that later becomes relevant again.
 
 ### Persistent memory + retrieval
 
-This is usually more robust than raw history, but it introduces a different class of failures. Retrieval can be stale, incomplete, or semantically off-target. The wrong memory may override the current task state, or a low-quality retrieval may cause the agent to reason with a mis-specified object. This is especially dangerous when the system cannot distinguish deriveable facts from testimonial state that exists only in the interaction history.
+This is usually more robust than raw history, but it introduces a different class of failures. Retrieval can be stale, incomplete, or semantically off-target. The wrong memory may override the current task state and lead to a confident but incorrect answer.
 
 ### Cache-aware compaction without lifecycle rules
 
-Many teams optimize for prompt-cache stability and run compaction on a timer. This can reduce active tokens but increase cache invalidation churn. If compaction is done too often, the system pays the cost of rebuilding prefixes repeatedly. If it is done too rarely, the prompt grows and user-visible latency grows with it. In both cases, no clear decision framework explains why the selected state is the one worth preserving.
+Many teams optimize for prompt-cache stability and run compaction on a timer. This can reduce active tokens but increase cache invalidation churn. If compaction is done too often, the system pays a large cost in rebuilds and unstable prefixes.
 
 ## Architecture
 
@@ -129,9 +129,9 @@ That lifecycle is intentionally different from “just keep the last N turns.”
 - Observation: what happened in the model call and what did it actually need?
 - Re-evaluation: what should be reclassified, discarded, or retained after the task is complete?
 
-The important architectural idea is that context is not “stored.” It is moved between representations and places according to a retention policy. This is more than a slogan. It means that information must be scored on multiple properties before it is kept, summarized, externalized, or discarded. In a production system, a useful rule is not just “keep the most recent” or “keep what is still in the window.” The rule is closer to: keep the minimal representation that preserves the information that is still relevant, still costly to reconstruct, or still necessary to prevent repeated failure. In practice, that means weighting at least five dimensions: relevance to the current task, recoverability from trusted sources, derivability, information-loss cost if it is discarded, and cache or assembly cost if it is retained. Recency matters, but it is only one signal among several.
+The important architectural idea is that context is not “stored.” It is moved between representations and places according to a retention policy. This is more than a slogan. It means that information can be lost deliberately, externalized, compressed, retrieved, or reconstructed according to a system-specific lifecycle.
 
-This is also where prompt caching becomes part of the design rather than an afterthought. A stable system prompt or structured task state can be a good cache prefix; a volatile, frequently changing state cannot. If the system repeatedly compacts or rewrites the same prefix, the cost of invalidation may exceed the savings from shorter prompts. The right question is not “how many tokens are in the context?” but “what representation has the lowest total cost to retain, reassemble, and revalidate across the next task cycle?”
+This is also where prompt caching becomes part of the design rather than an afterthought. A stable system prompt or structured task state can be a good cache prefix; a volatile, frequently changing tool result should not be treated as if it were stable prompt infrastructure.
 
 ## Trade-offs
 
@@ -145,7 +145,7 @@ The natural trade-off is not simply “shorter prompt” versus “longer prompt
 - Deterministic stubs for tool outputs improve cache stability but can hide useful detail if the stub is too coarse.
 - Compaction policies that ignore cache invalidation can look efficient while creating a higher system-level cost than they save.
 
-A good production system therefore needs a composite policy. It should preserve critical constraints losslessly, externalize large or recoverable tool results, retrieve only when needed, summarize user-visible context selectively, and leave the system with simple rules for what is safe to discard. The important engineering question is not whether a fact is recent, but whether it is necessary, recoverable, and worth preserving at the current cost of attention and latency.
+A good production system therefore needs a composite policy. It should preserve critical constraints losslessly, externalize large or recoverable tool results, retrieve only when needed, summarize carefully, and explicitly track which information is still trustworthy.
 
 ## Failure Modes
 
@@ -159,19 +159,19 @@ These are the failure modes that matter in production systems, because they are 
 | Retrieval noise overwhelms signal | The system is overloaded with irrelevant memory | Retrieval feels “helpful” but is semantically broad | Score retrieval and distinguish evidence from background context |
 | Cache invalidation costs more than compaction saved | Frequent compaction breaks stable prefixes | Prefix stability was assumed to be free | Measure cache rebuild cost and compaction cadence explicitly |
 | Tool result ballooning | Large tool outputs crowd the active context | Tool outputs look authoritative and easy to retain | Externalize large results and replace them with deterministic stubs |
-| Unrecoverable lossy transformation | A summarizer removes information that could have been reconstructed | The summary seemed compact and sufficient | Only compress when information-loss cost is low |
+| Unrecoverable lossy transformation | A summarizer removes information that could have been reconstructed | The summary seemed compact and sufficient | Only compress when information-loss cost is understood and accepted |
 
 The key insight is that most of these failures do not look like model failures. They look like context governance failures.
 
 ## Reference Implementation
 
-This repository does not yet include a full production-ready context lifecycle implementation; that is a separate engineering artifact from the article itself. The closest concrete examples in this repo are the response-delivery and filtering patterns in [04-reference-implementation/](../04-reference-implementation/), especially the adaptive response filter, which shows the same underlying principle: preserve the important state, externalize large artifacts, and optimize the boundary between the system and the next consumer.
+This repository does not yet include a full production-ready context lifecycle implementation; that is a separate engineering artifact from the article itself. The closest concrete examples in this repo are the architectural patterns and local implementation boundaries, not a full context manager.
 
 The reference pattern for this article is therefore architectural rather than a single class: keep explicit state, separate stable and dynamic context, and make retention policy visible instead of implicit.
 
 ## Experiment
 
-A credible experiment should isolate context strategies under controlled workloads rather than rely on anecdotal interaction quality. The goal is not to prove that one policy is universally dominant. It is to compare how strategies behave under long-running tasks with changing state and retrieval pressure.
+A credible experiment should isolate context strategies under controlled workloads rather than rely on anecdotal interaction quality. The goal is not to prove that one policy is universally dominant; it is to compare retention policies under workload conditions that stress context drift and stale memory.
 
 A minimal experiment would use a fixed set of tasks that require:
 
@@ -216,11 +216,11 @@ The benchmark should not pretend to produce a single universal number. It should
 - end-to-end latency P50/P95
 - task success rate
 
-This is especially important for prompt caching. A strategy that appears cost-efficient in raw token count can still be worse if it destroys cache stability and forces large prefix rebuilds. Context management cannot be evaluated on prompt length alone.
+This is especially important for prompt caching. A strategy that appears cost-efficient in raw token count can still be worse if it destroys cache stability and forces large prefix rebuilds. Context quality is not just a prompt-size problem.
 
 ## Observations
 
-The main observation is that context quality is not a simple function of recency or token count. The best production systems treat context as a constrained resource with a retention policy, not a bag of everything that happened over time.
+The main observation is that context quality is not a simple function of recency or token count. The best production systems treat context as a constrained resource with a retention policy, not as an unbounded transcript.
 
 A few patterns emerge from the production reasoning behind this article:
 
@@ -229,15 +229,15 @@ A few patterns emerge from the production reasoning behind this article:
 - Testimonial information — decisions, constraints, and rejected alternatives — often matters more than it appears at the moment it is created.
 - Compaction is a system design problem, not just a summarization problem.
 - Prompt-cache behavior changes the economics of context management in ways that raw token numbers do not capture.
-- The output side of the system matters too: response delivery can become slower when the system optimizes only input-side token reduction while ignoring stream assembly, serialization, and user-visible latency.
+- The output side of the system matters too: response delivery can become slower when the system optimizes only input-side token reduction while ignoring stream assembly, serialization, and user-perceived latency.
 
-This does not prove a universal algorithm. It does suggest that the production design must make context lifecycle an explicit part of the architecture and must clearly separate what is known, what is observed, and what remains a hypothesis to be measured.
+This does not prove a universal algorithm. It does suggest that the production design must make context lifecycle an explicit part of the architecture and must clearly separate what is known, what is derived, and what is merely remembered.
 
 ## Decision
 
-The architecture decision is to treat context as a managed lifecycle with explicit retention and retrieval policies rather than as an unbounded transcript or a single fixed-size window. This means keeping the active context small, preserving critical constraints losslessly, externalizing large or recoverable artifacts, and retrieving only when a future task genuinely needs them.
+The architecture decision is to treat context as a managed lifecycle with explicit retention and retrieval policies rather than as an unbounded transcript or a single fixed-size window. This means classifying information by role, storing it where it belongs, and retrieving only what is necessary for the current task.
 
-This decision is most valuable in long-running, multi-step, tool-using agents where the context is not merely conversational but operational. It is less valuable in a short, stateless prompt-response flow where history is cheap and task state is minimal.
+This decision is most valuable in long-running, multi-step, tool-using agents where the context is not merely conversational but operational. It is less valuable in a short, stateless prompt-response system.
 
 ## Interview Questions
 
@@ -252,15 +252,15 @@ This decision is most valuable in long-running, multi-step, tool-using agents wh
 - What is the smallest active context bundle that still preserves required task reasoning?
 - What metrics prove the system is improving context quality rather than merely reducing prompt size?
 
-## Further Reading
+## Related Topics
 
-- Ellis, D. and others. Practical work on memory and retrieval systems for long-lived agents.
+- Ellis, D. and others. Practical work on memory and retrieval systems for long-lived agents. <!-- TODO: verify source exists -->
 - OpenAI and Anthropic documentation on tool-use, memory, and state management patterns in production agents.
 - Research on long-context evaluation, summarization failure modes, and retrieval quality.
 - Work on prompt caching and prefix stability in large language model serving systems.
 - Production engineering literature on observability, incident analysis, and state management under partial failure.
 
-The main takeaway is simple: context engineering is not a matter of squeezing more tokens into a model. It is the discipline of deciding what information survives, how it survives, and whether it can be recovered when the task changes.
+The main takeaway is simple: context engineering is not a matter of squeezing more tokens into a model. It is the discipline of deciding what information survives, how it survives, and whether the system can recover it when the next decision depends on it.
 
 ---
 

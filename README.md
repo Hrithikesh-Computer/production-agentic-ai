@@ -1,4 +1,4 @@
-﻿# Production Agentic AI
+# Production Agentic AI
 
 Building reliable agentic AI systems through engineering investigation, architecture decision-making, and production evidence.
 
@@ -8,7 +8,7 @@ Its executable scope is deliberately small: research articles, conceptual Mermai
 
 ## Scope
 
-This repository studies production AI engineering problems. It is not itself a production AI platform. Articles document engineering reasoning, trade-offs, and investigations. Reference implementations make selected ideas executable and testable. The implementations are intentionally smaller than the systems they represent.
+This repository studies production AI engineering problems. It is not itself a production AI platform. Articles document engineering reasoning, trade-offs, and investigations. Reference implementations and experiments support that work without claiming to be a production platform.
 
 ## What this repository covers
 
@@ -20,16 +20,17 @@ This repository studies production AI engineering problems. It is not itself a p
 
 ## Current Implementation Boundary
 
-The implemented slice provides delivery policy, UTF-8-safe chunking, validated `WireEnvelope` values with one CRC32 implementation, bounded single-message reassembly, tests, CI, linting, type checking, and a local demo. It serializes the complete response before yielding envelopes; it does not provide true network-level streaming.
+The implemented slice provides delivery policy, UTF-8-safe chunking, validated `WireEnvelope` values with one CRC32 implementation, bounded single-message reassembly, tests, CI, linting, type checking, and a demo. It is intentionally narrow and documentation-first.
 
-There is no FastAPI server, LangGraph runtime, LLM client, database, Redis, PostgreSQL, OpenTelemetry runtime, Docker deployment, browser/client reassembler, or production transport in this repository. Those may appear as research context or future architecture, not as current features or required dependencies.
+There is no FastAPI server, LangGraph runtime, LLM client, database, Redis, PostgreSQL, OpenTelemetry runtime, Docker deployment, browser/client reassembler, or production transport in this repository.
 
 ## Recommended reading path
 
 1. [03-production-lessons/](./03-production-lessons/) for production investigations and lessons learned
-2. [01-agent-architecture/](./01-agent-architecture/) for architectural patterns and design trade-offs
-3. [02-context-and-memory/](./02-context-and-memory/) for context budgeting and memory-related systems work
-4. [04-reference-implementation/](./04-reference-implementation/) for the accompanying implementation examples
+2. [03-production-lessons/02-emr-spark-postgresql-ingestion-optimization.md](./03-production-lessons/02-emr-spark-postgresql-ingestion-optimization.md) — Architecture Optimization for EMR to PostgreSQL Ingestion
+3. [01-agent-architecture/](./01-agent-architecture/) for architectural patterns and design trade-offs
+4. [02-context-and-memory/](./02-context-and-memory/) for context budgeting and memory-related systems work
+5. [04-reference-implementation/](./04-reference-implementation/) for the accompanying implementation examples
 
 ## Featured article
 
@@ -65,25 +66,25 @@ python 04-reference-implementation/adaptive-response-filter/demo.py
 
 ## Repository Packaging and Dependency Reality
 
-This repository is intentionally not presented as a reusable installed Python package API. The editable-install metadata in [pyproject.toml](pyproject.toml) declares a lightweight project config with `dependencies = []` and `packages = []` because the code is designed to be read in-place from the repository tree, not distributed as a general-purpose library surface.
+This repository is intentionally not presented as a reusable installed Python package API. The editable-install metadata in [pyproject.toml](pyproject.toml) declares a lightweight project config without claiming a production runtime surface.
 
 This matters for reading the project correctly:
 
-- The actual executed code is the repository's local source tree, especially the modules under [04-reference-implementation/adaptive-response-filter](04-reference-implementation/adaptive-response-filter).
+- The actual executed code is the repository's local source tree, especially the modules under [04-reference-implementation/adaptive-response-filter](04-reference-implementation/adaptive-response-filter)
 - The repository does not claim to ship a production Python package, a web framework, or a runtime service.
 - The project is a documentation and reference-workspace repository first, with a small local implementation slice second.
 
 ## How to Read this Repository
 
-This repository is a documentation-led engineering knowledge base. Its primary product is the article narrative, the architecture reasoning, and the evidence trail behind specific engineering decisions. The code in this repository is deliberately smaller than the systems described in the writing and should be read as a faithful educational slice, not a full operational deployment.
+This repository is a documentation-led engineering knowledge base. Its primary product is the article narrative, the architecture reasoning, and the evidence trail behind specific engineering decisions.
 
-Read the articles as engineering arguments and research records, not as API documentation for a complete product. Each article describes a production problem, compares possible approaches, and records a decision. Check the article's status and evidence labels: production observations, local illustrative measurements, hypotheses, and proposed future work are different kinds of evidence and should not be treated as interchangeable.
+Read the articles as engineering arguments and research records, not as API documentation for a complete product. Each article describes a production problem, compares possible approaches, and records the trade-offs and evidence behind a decision.
 
-Use the diagrams as architecture-level explanations of the system being discussed. A diagram may describe a production deployment, a proposed design, or a local simulation that is not present in the repository. Read the title, caption, and neighboring text for the boundary; an arrow to a gateway, browser, model, or external service does not mean that component is implemented here.
+Use the diagrams as architecture-level explanations of the system being discussed. A diagram may describe a production deployment, a proposed design, or a local simulation that is not present in the code.
 
-The reference implementation is an isolated, pedagogical Python slice. It makes selected policies and contracts executable, but it is not an operational Agentic AI service: it has no model runtime, web server, transport layer, browser client, database, auth system, retry loop, or deployment stack. The code intentionally keeps the wire contract simple for teaching purposes, including a CRC32 checksum instead of authenticated message integrity and a single-request, single-message reassembler with strict validation rules. This is a local protocol exercise, not a production protocol boundary.
+The reference implementation is an isolated, pedagogical Python slice. It makes selected policies and contracts executable, but it is not an operational Agentic AI service: it has no model runtime, no database, and no serving stack.
 
-Important boundary rule: the repository is not a live AI product, not a deployment environment, and not a monorepo for a production stack. It is a bounded, inspectable implementation of a protocol idea plus a written record of the broader engineering reasoning around it. Any mention of FastAPI, Redis, Pydantic, Postgres, browser clients, gateways, or TypeScript runtimes should be read as future research context or conceptual production architecture unless the file explicitly includes that technology in its current implementation boundary and configuration.
+Important boundary rule: the repository is not a live AI product, not a deployment environment, and not a monorepo for a production stack. It is a bounded, inspectable implementation of a protocol idea and a research archive.
 
 A useful reading sequence is:
 
@@ -99,7 +100,7 @@ The repository should be read in three layers:
 - Layer 2: diagrams and architecture narratives
 - Layer 3: local Python reference implementations and their tests
 
-The layers complement each other, but they are not interchangeable. A production article may discuss a gateway, streaming UI, or data plane that is not present in the local code; the repository is intentionally an evidence-driven teaching archive rather than a runnable product system.
+The layers complement each other, but they are not interchangeable. A production article may discuss a gateway, streaming UI, or data plane that is not present in the local code; the repository is intentionally bounded.
 
 ### Systemic Context vs. Active Dependencies
 
@@ -120,9 +121,9 @@ Systemic context or future-facing ideas that may appear in the article narrative
 - Managed LLM or observability SDKs
 - deployment and orchestration infrastructure
 
-These broader possibilities are valid research ideas and architecture vocabulary, but they are not required to run the repository's local tests, demo, or lint checks. The current execution environment remains intentionally dependency-light and local-only.
+These broader possibilities are valid research ideas and architecture vocabulary, but they are not required to run the repository's local tests, demo, or lint checks. The current execution environment is intentionally small.
 
-The current local reference slice is intentionally narrow. It can be exercised by the checked-in tests and demo without requiring external services. That is deliberate: the repository's executable boundary is the protocol contract and validation logic, not a full platform runtime. The article narrative may describe a larger production environment, but that environment is not the local execution contract in this workspace.
+The current local reference slice is intentionally narrow. It can be exercised by the checked-in tests and demo without requiring external services. That is deliberate: the repository's executable boundary is limited to a narrow protocol idea.
 
 ## License
 
