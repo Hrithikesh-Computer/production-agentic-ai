@@ -97,6 +97,22 @@ When introducing a term not covered here for the first time in a given article, 
 
 ---
 
+## Evidence Language in Architecture & Presales Reviews
+
+When writing or reviewing architecture evaluations, presales assessments, or any claim about capabilities in this repository, follow the evidence classifications defined in [`prompts/architecture-presales-evaluation.md`](./prompts/architecture-presales-evaluation.md).
+
+Required distinctions:
+
+- **PROVEN / VERIFIED** — only for claims supported by repository code, tests, CI, or measured results.
+- **DOCUMENTED CAPABILITY / DESIGN INTENT / HYPOTHESIS** — for everything else that is described but not independently verified.
+- **NOT IN REPOSITORY** must never be written as “the system does not have…”. Use “the reviewed repository does not contain…” or “cannot be verified from the reviewed repository.”
+
+Do not present research articles, conceptual architectures, illustrative benchmarks, or security/reliability principles as production capabilities or customer commitments.
+
+This rule applies to evaluation reports and customer-facing technical material. It does not change the writing style of research articles themselves.
+
+---
+
 ## When This Document and an Article Disagree
 
 If a published article predates a change to this style guide, it is brought into alignment during its next scheduled maintenance pass (see `ROADMAP.md`), not immediately rewritten on its own. This guide is applied going forward and applied retroactively only as part of already-planned maintenance — not as a reason to interrupt the publication cadence to fix formatting in old work.

@@ -13,14 +13,20 @@ from policy import DeliveryPolicy
 def filter_response(
     response: Any,
     policy: DeliveryPolicy | None = None,
+    *,
+    authentication_key: bytes,
 ) -> Iterator[dict[str, int | str | bool]]:
-    """Serialize a response and yield validated envelope mappings."""
+    """Serialize a response and yield authenticated envelope mappings."""
     active_policy = policy if policy is not None else DeliveryPolicy()
     timer = Timer()
     payload = json.dumps(response, ensure_ascii=False).encode("utf-8")
     serialization_ms = timer.elapsed_ms()
 
-    envelopes = build_envelopes(payload, active_policy)
+    envelopes = build_envelopes(
+        payload,
+        active_policy,
+        authentication_key=authentication_key,
+    )
     emit(
         DeliveryMetrics(
             payload_size=len(payload),

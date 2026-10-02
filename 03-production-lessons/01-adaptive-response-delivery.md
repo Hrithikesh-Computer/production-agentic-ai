@@ -9,7 +9,10 @@
 
 > **Note:** This article abstracts an engineering investigation performed while building a production AI application. Architecture, benchmarks, payload shapes, and implementation details have been generalized to keep the story useful without exposing the original system.
 
-> **Implementation boundary:** The production investigation described here is broader than the executable code in this repository. The Python reference is a pedagogical slice for policy, chunk splitting, and reconstructed delivery semantics.
+> > Status: Research / generalized production investigation.
+> Evidence boundary: The timings in this article are illustrative and environment-specific; the repository does not contain the original production stack, so these results are not treated as production SLA or deployment evidence.
+
+**Implementation boundary:** The production investigation described here is broader than the executable code in this repository. The Python reference is a pedagogical slice for policy, chunk splitting, and reconstructed delivery semantics.
 
 ## Executive Summary
 

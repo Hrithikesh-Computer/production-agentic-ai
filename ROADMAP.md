@@ -174,6 +174,19 @@ Nothing is added to this structure unless something else is removed. This constr
 
 ---
 
+## Evidence Layer and Benchmark Discipline
+
+This repository is intentionally building toward a stronger evidence posture. The benchmark layer is not a sign that the repository is becoming a product or a framework; it is the mechanism that turns the strongest architecture and reliability claims into reproducible local evidence.
+
+Every major claim should eventually map to:
+
+1. article / design rationale
+2. implementation or local protocol slice
+3. tests and/or benchmark execution
+4. explicit limits and missing evidence
+
+The benchmark layer exists to prevent the repository from confusing conceptual reasoning with measured results. Benchmark outputs are treated as local, controlled evidence, not as production deployment metrics.
+
 ## Current Implemented Surface vs Future Research Context
 
 The repository contains two different kinds of material, and readers should not blur them together.
@@ -605,6 +618,21 @@ Vanity metrics are not tracked as indicators of progress. The following are trac
 - Overall repository quality as judged by internal review against these standards
 
 Recruiter outreach and interview invitations are tracked as well, but are treated explicitly as lagging indicators. They are evidence that the underlying discipline has been sustained for long enough to be noticed externally — they are not expected to move in response to any single article, and their absence in early cycles is not a signal that the work is off track. GitHub stars are welcome when they occur but are not an objective of the work.
+
+## Architecture & Presales Evaluation
+
+All architecture reviews and customer-facing technical evaluations of this repository (or systems derived from it) must follow the evidence-first methodology defined in:
+
+- [`prompts/architecture-presales-evaluation.md`](./prompts/architecture-presales-evaluation.md)
+
+Key mandatory rules:
+
+- Distinguish **what exists in the repository** from **what is only documented, intended, or hypothesized**.
+- Never treat **NOT IN REPOSITORY** as **PROVEN ABSENT**.
+- Never convert design intent, research articles, conceptual architectures, or illustrative benchmarks into production claims.
+- Performance, security, reliability, and AI-quality claims require explicit evidence classification before they may be presented to a customer.
+
+This methodology protects both engineering honesty and customer-facing safety. It does not change the scope or content of research articles.
 
 ---
 

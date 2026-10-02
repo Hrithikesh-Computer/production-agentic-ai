@@ -8,7 +8,11 @@ def build_sample_payload(size: int) -> str:
 
 
 if __name__ == "__main__":
-    filter = AdaptiveResponseFilter(threshold_bytes=2_000, max_chunk_bytes=400)
+    filter = AdaptiveResponseFilter(
+        threshold_bytes=2_000,
+        max_chunk_bytes=400,
+        authentication_key=b"local-demo-key-not-for-production",
+    )
 
     small_payload = build_sample_payload(300)
     large_payload = build_sample_payload(3_000)

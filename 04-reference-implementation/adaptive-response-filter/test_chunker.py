@@ -28,6 +28,27 @@ def test_large_payload_splits_by_top_level_keys():
     assert merged == json.loads(payload)
 
 
+def test_oversized_tool_calls_fall_through_to_tool_boundaries():
+    payload = json.dumps(
+        {
+            "status": "ok",
+            "tool_calls": [
+                {"name": "lookup", "result": "x" * 45},
+                {"name": "summarize", "result": "y" * 45},
+                {"name": "recommend", "result": "z" * 45},
+            ],
+        },
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+    chunks = semantic_split(payload, max_chunk_bytes=90)
+
+    assert len(chunks) > 1
+    assert all(len(chunk) <= 90 for chunk in chunks)
+    assert json.loads(b"".join(chunks)) == json.loads(payload)
+    assert all(b'"name"' not in chunk or b'"result"' in chunk for chunk in chunks)
+
+
 def test_non_json_falls_back_to_fixed_size():
     payload = b"not json at all" * 50
     chunks = semantic_split(payload, max_chunk_bytes=100)

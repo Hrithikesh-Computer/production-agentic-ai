@@ -28,6 +28,17 @@ Contributions that only add prose — restructuring an explanation, fixing uncle
 
 ---
 
+## Evidence requirements for contributions
+
+Every substantive contribution should clarify whether it is:
+
+- conceptual
+- implemented locally
+- benchmarked locally
+- still missing direct evidence
+
+A contribution that adds a new article or architecture claim should also add or update the relevant evidence artifact. The repository is expressly trying to move from conceptual engineering writing to a more evidence-driven research posture without broadening into a full runtime or platform.
+
 ## The Publishing Gate
 
 This is not optional and applies equally to every contributor, including the maintainer.

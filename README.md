@@ -24,18 +24,30 @@ The implemented slice provides delivery policy, UTF-8-safe chunking, validated `
 
 There is no FastAPI server, LangGraph runtime, LLM client, database, Redis, PostgreSQL, OpenTelemetry runtime, Docker deployment, browser/client reassembler, or production transport in this repository.
 
+## Repository Capability Statement
+
+| Category | Status in this repo | Evidence |
+|---|---|---|
+| Executable implementation | Local Python reference slice for adaptive response delivery | Tests, demo, and code under [04-reference-implementation/adaptive-response-filter](04-reference-implementation/adaptive-response-filter) |
+| Research articles | Documented engineering analysis and trade-off discussions | Markdown articles and diagrams in this repository |
+| Conceptual architecture | Pattern sketches and architecture proposals | Design-only material; not backed by a matching runtime in this repo |
+| External / absent | EMR, Spark, PostgreSQL/RDS pipelines, production deployments, and cloud service stacks referenced in examples | Not present in the checked-in repository; not measured here |
+
 ## Recommended reading path
 
 1. [03-production-lessons/](./03-production-lessons/) for production investigations and lessons learned
-2. [03-production-lessons/02-emr-spark-postgresql-ingestion-optimization.md](./03-production-lessons/02-emr-spark-postgresql-ingestion-optimization.md) — Architecture Optimization for EMR to PostgreSQL Ingestion
-3. [01-agent-architecture/](./01-agent-architecture/) for architectural patterns and design trade-offs
-4. [02-context-and-memory/](./02-context-and-memory/) for context budgeting and memory-related systems work
-5. [04-reference-implementation/](./04-reference-implementation/) for the accompanying implementation examples
+2. [01-agent-architecture/](./01-agent-architecture/) for architectural patterns and design trade-offs
+3. [01-agent-architecture/02-emr-to-postgresql-ingestion-architecture.md](./01-agent-architecture/02-emr-to-postgresql-ingestion-architecture.md) — Architecture Optimization for EMR to PostgreSQL Ingestion
+4. [01-agent-architecture/03-walkme-workflow-automation-copilot.md](./01-agent-architecture/03-walkme-workflow-automation-copilot.md) — Enterprise Walkthrough & Workflow Automation Copilot
+5. [01-agent-architecture/04-fintech-governance-risk-agentic-platform.md](./01-agent-architecture/04-fintech-governance-risk-agentic-platform.md) — Multi-Use Case FinTech Governance & Risk Agentic Platform
+6. [02-context-and-memory/](./02-context-and-memory/) for context budgeting and memory-related systems work
+7. [04-reference-implementation/](./04-reference-implementation/) for the accompanying implementation examples
 
 ## Featured article
 
 - [03-production-lessons/01-adaptive-response-delivery.md](./03-production-lessons/01-adaptive-response-delivery.md) — Large Response Delivery in Agentic AI: A Production Investigation
-- [03-production-lessons/02-emr-spark-postgresql-ingestion-optimization.md](./03-production-lessons/02-emr-spark-postgresql-ingestion-optimization.md) — Architecture Optimization for EMR to PostgreSQL Ingestion
+- [01-agent-architecture/02-emr-to-postgresql-ingestion-architecture.md](./01-agent-architecture/02-emr-to-postgresql-ingestion-architecture.md) — Architecture Optimization for EMR to PostgreSQL Ingestion
+- [01-agent-architecture/03-walkme-workflow-automation-copilot.md](./01-agent-architecture/03-walkme-workflow-automation-copilot.md) — Enterprise Walkthrough & Workflow Automation Copilot
 
 ## Repository structure
 
@@ -62,7 +74,34 @@ python -m mypy 04-reference-implementation/adaptive-response-filter
 
 # Run the reference demo
 python 04-reference-implementation/adaptive-response-filter/demo.py
+
+# Run the local evidence benchmarks
+python benchmarks/response-delivery/benchmark.py
+python benchmarks/context-lifecycle/benchmark.py
+python -m pytest benchmarks/authority-conformance/test_authority_conformance.py -q
 ```
+
+## Evidence posture and benchmark layer
+
+This repository is intentionally a reliability-first, architecture-first knowledge base and local reference implementation. It is not a framework, production runtime, or deployed AI platform.
+
+The benchmark layer under [benchmarks/README.md](./benchmarks/README.md) exists to strengthen the strongest ideas without pretending they are production deployment evidence. Every benchmark is designed to be explicit about what is being measured and what remains outside the current evidence boundary.
+
+The repository's strongest public evidence is currently:
+
+- the local adaptive response-delivery implementation and tests under [04-reference-implementation/adaptive-response-filter](./04-reference-implementation/adaptive-response-filter)
+- the response-delivery benchmark under [benchmarks/response-delivery](./benchmarks/response-delivery)
+- the context-lifecycle benchmark under [benchmarks/context-lifecycle](./benchmarks/context-lifecycle)
+- the authority conformance suite under [benchmarks/authority-conformance](./benchmarks/authority-conformance)
+
+These artifacts are intentionally narrow and reproducible. They are not presented as production telemetry, production incident data, or deployed-system benchmarks.
+
+The repository's evidence model is:
+
+- implemented and tested locally: real code + tests + CI
+- conceptual and architecture-level: reasoning and design intent
+- benchmarked locally under controlled conditions: specific benchmark suites in this repository
+- future work / not yet evidenced: production deployment, browser runtime, or fleet-scale data
 
 ## Repository Packaging and Dependency Reality
 
@@ -85,6 +124,19 @@ Use the diagrams as architecture-level explanations of the system being discusse
 The reference implementation is an isolated, pedagogical Python slice. It makes selected policies and contracts executable, but it is not an operational Agentic AI service: it has no model runtime, no database, and no serving stack.
 
 Important boundary rule: the repository is not a live AI product, not a deployment environment, and not a monorepo for a production stack. It is a bounded, inspectable implementation of a protocol idea and a research archive.
+
+### Architecture & Presales Evaluation
+
+Any technical or customer-facing evaluation of this repository must follow the evidence-first methodology in [`prompts/architecture-presales-evaluation.md`](./prompts/architecture-presales-evaluation.md).
+
+That document requires clear separation of:
+
+- what is actually present and executable in the repository
+- what is only documented
+- what is design intent or hypothesis
+- what cannot be verified from the reviewed repository
+
+It also prevents unsupported customer claims. Research articles and architecture sketches remain research records; they are not automatically production capabilities.
 
 A useful reading sequence is:
 

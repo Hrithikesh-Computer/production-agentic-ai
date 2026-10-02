@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 
 from chunker import is_json_object, semantic_split
@@ -20,8 +21,11 @@ class FilterResult:
 def build_envelopes(
     payload_bytes: bytes,
     policy: DeliveryPolicy,
+    authentication_key: bytes,
+    message_id: str | None = None,
 ) -> list[WireEnvelope]:
-    """Split a payload and wrap each part in a validated envelope."""
+    """Split and authenticate each payload fragment under one message ID."""
+    active_message_id = message_id or uuid.uuid4().hex
     if not policy.should_chunk(payload_bytes):
         return [
             WireEnvelope.from_bytes(
@@ -29,6 +33,8 @@ def build_envelopes(
                 total_chunks=1,
                 payload=payload_bytes,
                 is_final=True,
+                message_id=active_message_id,
+                authentication_key=authentication_key,
             )
         ]
 
@@ -41,6 +47,8 @@ def build_envelopes(
             total_chunks=total_chunks,
             payload=chunk_bytes,
             is_final=index == total_chunks - 1,
+            message_id=active_message_id,
+            authentication_key=authentication_key,
             merge_mode=merge_mode,
         )
         for index, chunk_bytes in enumerate(chunk_bytes_list)
@@ -54,7 +62,10 @@ class AdaptiveResponseFilter:
         self,
         threshold_bytes: int = 128_000,
         max_chunk_bytes: int = 64_000,
+        *,
+        authentication_key: bytes,
     ) -> None:
+        self.authentication_key = authentication_key
         self.policy = DeliveryPolicy(
             threshold_bytes=threshold_bytes,
             max_chunk_bytes=max_chunk_bytes,
@@ -70,7 +81,11 @@ class AdaptiveResponseFilter:
 
     def build(self, payload: str) -> FilterResult:
         payload_bytes = payload.encode("utf-8")
-        envelopes = build_envelopes(payload_bytes, self.policy)
+        envelopes = build_envelopes(
+            payload_bytes,
+            self.policy,
+            authentication_key=self.authentication_key,
+        )
         if not self.policy.should_chunk(payload_bytes):
             return FilterResult(
                 mode="full",

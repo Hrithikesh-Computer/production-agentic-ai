@@ -7,6 +7,9 @@
 **Category:** Agent Architecture
 **Status:** Research Article
 
+> Status: Research article.
+> Evidence boundary: This article is a reasoned architecture analysis, not a repository-implemented security runtime; claims about deployed control systems remain hypotheses unless supported by direct runtime evidence.
+
 ## Decision Summary
 
 Production agent security is not failing because authorization mechanisms are absent; it is failing because the system must answer a much harder question than “who is this caller?” or “what action is allowed?”

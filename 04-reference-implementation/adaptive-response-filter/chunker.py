@@ -4,10 +4,8 @@ chunks along semantically meaningful boundaries where possible.
 
 Boundary preference order: JSON object boundaries > tool output
 boundaries > citation blocks > paragraph boundaries > fixed-size
-byte fallback. This reference implementation only demonstrates the
-first and last of these (structural top-level-key splitting and
-fixed-size fallback); a production chunker would walk the full
-object graph.
+byte fallback. This reference implements top-level JSON object and
+tool-call list boundaries, then fixed-size fallback.
 """
 
 from __future__ import annotations
@@ -39,9 +37,20 @@ def semantic_split(payload: bytes, max_chunk_bytes: int) -> list[bytes]:
         return _fixed_size_split(payload, max_chunk_bytes)
 
     if isinstance(parsed, dict):
-        chunks = _split_by_top_level_keys(parsed, max_chunk_bytes)
+        json_boundary_error = None
+        try:
+            chunks = _split_by_top_level_keys(parsed, max_chunk_bytes)
+        except UnsplittableValueError as error:
+            json_boundary_error = error
+            chunks = []
         if chunks:
             return chunks
+
+        tool_chunks = _split_by_tool_boundaries(parsed, max_chunk_bytes)
+        if tool_chunks:
+            return tool_chunks
+        if json_boundary_error is not None:
+            raise json_boundary_error
 
     return _fixed_size_split(payload, max_chunk_bytes)
 
@@ -95,6 +104,66 @@ def _split_by_top_level_keys(obj: dict, max_chunk_bytes: int) -> list[bytes]:
             .encode("utf-8")
         )
 
+    return chunks
+
+
+def _split_by_tool_boundaries(
+    obj: dict,
+    max_chunk_bytes: int,
+) -> list[bytes] | None:
+    """Split an oversized tool_calls list only between complete tool records.
+
+    The canonical JSON serialization is concatenated by the receiver, so
+    fragments remain an exact, syntactically complete JSON document on merge.
+    """
+    tool_calls = obj.get("tool_calls")
+    if not isinstance(tool_calls, list) or len(tool_calls) < 2:
+        return None
+
+    units: list[bytes] = [b"{"]
+    for key, value in obj.items():
+        if units != [b"{"]:
+            units.append(b",")
+        key_bytes = json.dumps(key, ensure_ascii=False).encode("utf-8")
+        if key == "tool_calls":
+            units.extend([key_bytes + b":["])
+            for index, tool_call in enumerate(tool_calls):
+                prefix = b"," if index else b""
+                units.append(
+                    prefix
+                    + json.dumps(
+                        tool_call,
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    ).encode("utf-8")
+                )
+            units.append(b"]")
+        else:
+            units.append(
+                key_bytes
+                + b":"
+                + json.dumps(
+                    value,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            )
+    units.append(b"}")
+
+    if any(len(unit) > max_chunk_bytes for unit in units):
+        return None
+
+    chunks: list[bytes] = []
+    current = bytearray()
+    for unit in units:
+        if current and len(current) + len(unit) > max_chunk_bytes:
+            chunks.append(bytes(current))
+            current.clear()
+        current.extend(unit)
+    if current:
+        chunks.append(bytes(current))
+    if len(chunks) < 2:
+        return None
     return chunks
 
 

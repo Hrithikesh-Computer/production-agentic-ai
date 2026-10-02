@@ -7,6 +7,9 @@
 **Category:** Context Engineering
 **Status:** Research Article
 
+> Status: Research article.
+> Evidence boundary: This article documents a design and lifecycle model; the repository does not include a production context manager, and measured latency or cost claims remain illustrative unless backed by a concrete implementation and benchmark.
+
 ## Decision Summary
 
 The real production problem is not that an agent has too many tokens in a single prompt; it is that context has no lifecycle and therefore accumulates without explicit rules for preservation, transformation, retrieval, or discard.

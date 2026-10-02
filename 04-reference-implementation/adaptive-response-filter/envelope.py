@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
 import zlib
 from dataclasses import dataclass
 from typing import Mapping
@@ -13,6 +16,38 @@ MAX_ENVELOPE_PAYLOAD_BYTES = 16_000_000
 def checksum(payload: bytes) -> str:
     """Return the canonical eight-character CRC32 checksum."""
     return f"{zlib.crc32(payload) & 0xFFFFFFFF:08x}"
+
+
+def authentication_tag(
+    *,
+    sequence: int,
+    total_chunks: int,
+    checksum_value: str,
+    is_final: bool,
+    payload: str,
+    merge_mode: str,
+    message_id: str,
+    authentication_key: bytes,
+) -> str:
+    """Sign every routing, integrity, and payload field with HMAC-SHA256."""
+    if not isinstance(authentication_key, bytes) or not authentication_key:
+        raise ValueError("authentication_key must be non-empty bytes")
+    authenticated_fields = {
+        "sequence": sequence,
+        "total_chunks": total_chunks,
+        "checksum": checksum_value,
+        "is_final": is_final,
+        "payload": payload,
+        "merge_mode": merge_mode,
+        "message_id": message_id,
+    }
+    canonical = json.dumps(
+        authenticated_fields,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hmac.new(authentication_key, canonical, hashlib.sha256).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -29,6 +64,8 @@ class WireEnvelope:
     checksum: str
     is_final: bool
     payload: str
+    message_id: str
+    auth_tag: str
     merge_mode: str = "concat"
 
     def __post_init__(self) -> None:
@@ -72,6 +109,15 @@ class WireEnvelope:
             raise TypeError("merge_mode must be a string")
         if self.merge_mode not in {"concat", "json-object"}:
             raise ValueError("merge_mode must be 'concat' or 'json-object'")
+        if not isinstance(self.message_id, str) or not self.message_id:
+            raise ValueError("message_id must be a non-empty string")
+        if not isinstance(self.auth_tag, str) or len(self.auth_tag) != 64:
+            raise ValueError("auth_tag must be a 64-character HMAC-SHA256 hex string")
+        if any(
+            character not in "0123456789abcdefABCDEF"
+            for character in self.auth_tag
+        ):
+            raise ValueError("auth_tag must contain only hexadecimal characters")
 
     @property
     def index(self) -> int:
@@ -86,22 +132,46 @@ class WireEnvelope:
         total_chunks: int,
         payload: bytes,
         is_final: bool,
+        message_id: str,
+        authentication_key: bytes,
         merge_mode: str = "concat",
     ) -> WireEnvelope:
-        """Build a checksummed envelope, rejecting invalid UTF-8 bytes."""
+        """Build a checksummed and authenticated envelope."""
+        payload_text = payload.decode("utf-8")
+        checksum_value = checksum(payload)
+        tag = authentication_tag(
+            sequence=sequence,
+            total_chunks=total_chunks,
+            checksum_value=checksum_value,
+            is_final=is_final,
+            payload=payload_text,
+            merge_mode=merge_mode,
+            message_id=message_id,
+            authentication_key=authentication_key,
+        )
         return cls(
             sequence=sequence,
             total_chunks=total_chunks,
-            checksum=checksum(payload),
+            checksum=checksum_value,
             is_final=is_final,
-            payload=payload.decode("utf-8"),
+            payload=payload_text,
+            message_id=message_id,
+            auth_tag=tag,
             merge_mode=merge_mode,
         )
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, object]) -> WireEnvelope:
         """Validate a decoded wire mapping before it enters reassembly."""
-        required = {"sequence", "total_chunks", "checksum", "is_final", "payload"}
+        required = {
+            "sequence",
+            "total_chunks",
+            "checksum",
+            "is_final",
+            "payload",
+            "message_id",
+            "auth_tag",
+        }
         missing = required.difference(data)
         if missing:
             raise ValueError(f"missing envelope fields: {', '.join(sorted(missing))}")
@@ -115,6 +185,8 @@ class WireEnvelope:
         checksum_value = data["checksum"]
         is_final = data["is_final"]
         payload = data["payload"]
+        message_id = data["message_id"]
+        auth_tag_value = data["auth_tag"]
         if isinstance(sequence, bool) or not isinstance(sequence, int):
             raise TypeError("sequence must be an integer")
         if isinstance(total_chunks, bool) or not isinstance(total_chunks, int):
@@ -125,6 +197,10 @@ class WireEnvelope:
             raise TypeError("is_final must be a boolean")
         if not isinstance(payload, str):
             raise TypeError("payload must be a UTF-8 string")
+        if not isinstance(message_id, str):
+            raise TypeError("message_id must be a string")
+        if not isinstance(auth_tag_value, str):
+            raise TypeError("auth_tag must be a string")
 
         return cls(
             sequence=sequence,
@@ -132,6 +208,8 @@ class WireEnvelope:
             checksum=checksum_value,
             is_final=is_final,
             payload=payload,
+            message_id=message_id,
+            auth_tag=auth_tag_value,
             merge_mode=merge_mode,
         )
 
@@ -143,9 +221,24 @@ class WireEnvelope:
             "checksum": self.checksum,
             "is_final": self.is_final,
             "payload": self.payload,
+            "message_id": self.message_id,
+            "auth_tag": self.auth_tag,
             "merge_mode": self.merge_mode,
         }
 
     def payload_bytes(self) -> bytes:
         """Encode payload exactly as checksummed by the producer."""
         return self.payload.encode("utf-8")
+
+    def verify_authentication(self, authentication_key: bytes) -> bool:
+        expected = authentication_tag(
+            sequence=self.sequence,
+            total_chunks=self.total_chunks,
+            checksum_value=self.checksum,
+            is_final=self.is_final,
+            payload=self.payload,
+            merge_mode=self.merge_mode,
+            message_id=self.message_id,
+            authentication_key=authentication_key,
+        )
+        return hmac.compare_digest(self.auth_tag.lower(), expected)

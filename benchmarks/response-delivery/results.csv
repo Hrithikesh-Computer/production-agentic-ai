@@ -1,0 +1,5 @@
+payload_size,mode,mean_ttfv_ms,mean_total_delivery_ms,mean_chunk_count,max_state_bytes,reassembly_correct,ordering_correct,validation_failures
+10000,full,0.0,0.00012249599993083393,1,10000,True,True,0
+50000,chunked,0.005261226599957808,0.018790094999849315,4,50000,True,True,0
+150000,chunked,0.01469847120002487,0.05249454000008882,10,150000,True,True,0
+300000,chunked,0.025179579599993302,0.08992706999997609,19,300000,True,True,0
