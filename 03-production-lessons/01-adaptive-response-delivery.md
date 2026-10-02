@@ -5,14 +5,12 @@
 **Reading time:** ~14 minutes
 **Difficulty:** Advanced
 **Category:** Production Engineering
-**Status:** Generalized production investigation; local measurements are illustrative and not reproducible from this repository
+**Status:** Generalized production investigation.
+**Evidence boundary:** Local measurements are illustrative and not reproducible from this repository; the timings are not production SLA or deployment evidence.
 
 > **Note:** This article abstracts an engineering investigation performed while building a production AI application. Architecture, benchmarks, payload shapes, and implementation details have been generalized to keep the story useful without exposing the original system.
 
-> > Status: Research / generalized production investigation.
-> Evidence boundary: The timings in this article are illustrative and environment-specific; the repository does not contain the original production stack, so these results are not treated as production SLA or deployment evidence.
-
-**Implementation boundary:** The production investigation described here is broader than the executable code in this repository. The Python reference is a pedagogical slice for policy, chunk splitting, and reconstructed delivery semantics.
+**Implementation boundary:** The production investigation described here is broader than the executable code in this repository. The Python reference is a bounded slice for wire validation, chunk splitting, authenticated envelopes, and message-scoped retry and fallback behavior.
 
 ## Executive Summary
 
@@ -27,7 +25,7 @@ This article investigates a bottleneck that appeared *after* inference had alrea
 - The delivery layer preserved the existing HTTP contract instead of requiring a transport migration.
 - The team favored incremental rollout over a full redesign, given the constraints described below.
 
-**What this is not:** a new transport protocol, a replacement for SSE/WebSockets, a universal optimization, or a formal experimental study — no statistical significance testing is implied by the examples here.
+**What this is not:** a new transport protocol, a replacement for SSE/WebSockets, a universal optimization, or a formal production benchmark — no statistical significance testing is implied by the examples here.
 
 **The evidence, illustrative:** the stage breakdown below is representative of the kind of split observed in this system's proxy benchmark, not a captured production trace.
 
@@ -220,7 +218,7 @@ if payload has nested objects or long text: favor chunk boundaries that preserve
 if the client can't safely reassemble state: fall back to the full-buffer path
 ```
 
-**Threshold justification:** the initial threshold was chosen empirically by plotting payload size against browser render time in local testing. Render cost stayed relatively flat below ~100–120 KB, then rose sharply as the payload grew beyond that range.
+**Threshold justification:** the initial threshold was chosen empirically by plotting payload size against browser render time in local testing. Render cost stayed relatively flat below about 100–120 KB, then rose sharply as the payload grew beyond that range.
 
 ## Chunk Boundary Algorithm
 
@@ -234,13 +232,13 @@ for strategy in [json_boundary, tool_boundary, heading, paragraph, sentence]:
 return fixed_size(payload)
 ```
 
-The reference implementation (`chunker.py`) demonstrates the JSON-boundary and fixed-size-fallback strategies. The middle strategies (`tool_boundary`, `heading`, `paragraph`, `sentence`) follow the same general pattern but are not fully implemented in this local slice.
+The reference implementation (`chunker.py`) demonstrates the JSON-boundary and fixed-size-fallback strategies, and it additionally respects top-level `tool_calls` boundaries when a large tool array must be split without breaking individual tool records. The heading, paragraph, sentence, and citation-block strategies are not implemented in this local slice.
 
 | Component | Complexity |
-|---|---|
+| --- | --- |
 | Splitting | O(n) |
 | Reassembly | O(n) |
-| Ordering (buffer + sort) | O(k log k) |
+| Ordering by sequence index | O(1) lookup per chunk, O(k) to assemble the final ordered result |
 | Memory | O(payload size) |
 
 (`n` = payload size in bytes, `k` = chunk count.)
@@ -300,9 +298,9 @@ Additional diagrams (client state machine, trace timeline, rollout stages) are i
 
 The checked-in implementation lives in `04-reference-implementation/adaptive-response-filter/`. `policy.py` applies byte thresholds, `chunker.py` splits top-level JSON object members or valid UTF-8 boundaries, and `reassembler.py` validates and reconstructs fragments.
 
-The local sequence serializes the whole response before it yields envelopes. The reassembler buffers until all chunks arrive, then returns reconstructed bytes or merged JSON-object bytes; it does not emulate a full browser or network stack.
+The local sequence serializes the whole response before it yields envelopes. The reference slice includes HMAC-SHA256 authentication on each `WireEnvelope`, message-scoped `ReassemblySession` retry/fallback logic, and a `ReassemblySessionManager` that routes interleaved fragments by `message_id`. It still does not emulate a full browser, network transport, or production gateway.
 
-The contract is intentionally educational. CRC32 detects accidental corruption but is not authentication. Retries, timeouts, partial UI state, transport framing, and multi-message multiplexing belong to a larger production system, not this local reference slice.
+The contract is intentionally educational. CRC32 detects accidental corruption, and HMAC-SHA256 authenticates the chunk fields and payload for a caller-supplied shared key. Retries, network timeouts, partial UI state, transport framing, key provisioning, and multi-endpoint security policy belong to a larger production system, not this local reference slice.
 
 ### Design principles
 
@@ -406,26 +404,29 @@ Modern LLM serving research has dramatically improved how quickly models generat
   "checksum": "9a3f1c02",
   "is_final": false,
   "merge_mode": "concat",
+  "message_id": "response-42",
+  "auth_tag": "9ac3d92f5f0f3a1117e7b5e7f1e4c0d3f37956d4c7d0d0c0b71e1d41f6fa2c3",
   "payload": "..."
 }
 ```
 
-The checksum value is an illustrative CRC32-shaped example. The repository's `WireEnvelope` computes the actual CRC32 over each UTF-8 payload fragment; CRC32 does not establish who sent the frame or whether the sender is authorized.
+The checksum value is an illustrative CRC32-shaped example. The repository's `WireEnvelope` computes the actual CRC32 over each UTF-8 payload fragment, and each envelope also carries a 64-character HMAC-SHA256 `auth_tag` over the chunk metadata and payload. CRC32 detects accidental corruption; HMAC verifies authenticity for a shared secret key.
 
-## Appendix C — Reassembly Algorithm
+Appendix C — Reassembly Algorithm
 
-1. Create one `Reassembler` per message. It is not a multi-message session manager.
-2. Validate envelope types, positive `total_chunks`, the sequence range, `is_final`, merge mode, checksum format, and configured chunk/payload bounds.
-3. Fix the expected `total_chunks` and merge mode from the first accepted frame; reject later frames that change either value.
-4. Verify CRC32 before storing payload. An identical duplicate is ignored while the message is incomplete; a duplicate sequence with different content is rejected.
-5. Wait until all sequence indexes are present, then either concatenate `concat` fragments as bytes or parse and merge `json-object` fragments by top-level key.
-6. The method returns bytes only when complete. It does not request a resend or expose partial data to a UI; transport retry, timeout, and rendering policy are not implemented.
+1. Create one `Reassembler` per message, and optionally route interleaved messages through a `ReassemblySessionManager` keyed by `message_id`.
+2. Validate envelope types, positive `total_chunks`, the sequence range, `is_final`, merge mode, checksum format, HMAC authentication tag, and configured chunk/payload bounds.
+3. Fix the expected `total_chunks`, `message_id`, and merge mode from the first accepted frame; reject later frames that change those values.
+4. Verify the CRC32 before storing payload, then verify the HMAC-SHA256 with a caller-supplied shared key.
+5. An identical duplicate is ignored while the message is incomplete; a duplicate sequence with different content is rejected.
+6. Wait until all sequence indexes are present, then either concatenate `concat` fragments as bytes or parse and merge `json-object` fragments by top-level key.
+7. If the message stalls, a `ReassemblySession` can request missing chunk indexes and eventually invoke a full-buffer fallback callback after the configured retry limit is exhausted.
 
-See `04-reference-implementation/adaptive-response-filter/reassembler.py` for the runnable receiver.
+See `04-reference-implementation/adaptive-response-filter/reassembler.py` for the runnable receiver and `envelope.py` for the authenticated wire contract.
 
-## Appendix D — Conceptual Client State Machine and Failure Modes
+## Appendix D — Session-State Model and Failure Modes
 
-The following state machine describes a possible production client integration. It is not implemented by the Python reference code; in particular, no timeout, retry, or fallback-to-partial-state logic is included in the local slice.
+The following state machine describes the local session model that exists in the Python reference slice: a message-scoped buffer can request missing chunks, retry within a timeout window, and fall back to a full-buffer callback when the retry budget is exhausted.
 
 ```mermaid
 stateDiagram-v2
@@ -434,15 +435,17 @@ stateDiagram-v2
     Receiving --> Receiving: more chunks arrive
     Receiving --> Complete: total_chunks reached
     Receiving --> Timeout: no chunk within timeout
-    Timeout --> Retry: request resend
+  Timeout --> Retry: request missing chunks
     Retry --> Receiving
+  Retry --> Fallback: retry budget exhausted
+  Fallback --> Complete: full-buffer callback returns payload
     Complete --> Render
     Render --> [*]
 ```
 
 | Failure | Symptom | Handling |
 |---|---|---|
-| Missing chunk | Reassembly never completes | Timeout → request resend |
+| Missing chunk | Reassembly never completes | Timeout → request missing chunks → retry budget → full-buffer fallback |
 | Duplicate chunk | Reassembly could double-apply | Idempotent merge keyed by sequence |
 | Late chunk | UI appears to "jump" | Buffer until in-order, don't render out of sequence |
 | Interrupted stream | Client stuck in partial state | Fallback to full-buffer re-request after timeout |

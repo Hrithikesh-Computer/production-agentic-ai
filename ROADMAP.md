@@ -164,13 +164,14 @@ LICENSE
 03-production-lessons/
 04-reference-implementation/
 05-field-notes/
+archive/
 
 diagrams/
 templates/
 prompts/
 ```
 
-Nothing is added to this structure unless something else is removed. This constraint exists to prevent the repository from accumulating folders faster than it accumulates finished work.
+Active content stays deliberately small. Historical design sketches, evaluations, and dated review artifacts belong under `archive/`, not in the active article tree.
 
 ---
 
@@ -194,7 +195,7 @@ The repository contains two different kinds of material, and readers should not 
 Read its maturity in four layers:
 
 1. **Current:** research articles, prompts, templates, and conceptual Mermaid diagrams.
-2. **Implemented reference slice:** local Python policy, chunking, envelopes, CRC32 checksums, reassembly, tests, CI, static checks, and demo.
+2. **Implemented reference slice:** local Python policy, UTF-8-safe chunking, authenticated envelopes (CRC32 plus HMAC-SHA256), bounded reassembly, message-scoped session retry/fallback, tests, CI, static checks, and demo.
 3. **Future reference extensions:** optional experiments or adapters, added only when a specific article and reproducible test justify them.
 4. **Potential production architecture:** servers, models, databases, queues, clients, telemetry backends, and deployment systems discussed as context only until code, dependencies, tests, and CI implement them.
 
@@ -204,17 +205,17 @@ The code that is actively present and testable in the repo today is intentionall
 
 At the moment, the local implementation includes:
 
-- a validated `WireEnvelope` contract and CRC32 checksum helper
+- a validated `WireEnvelope` contract with CRC32 checksums and HMAC-SHA256 authentication
 - a `DeliveryPolicy` that decides whether to chunk
 - a `semantic_split()`/`_fixed_size_split()` chunking path
-- a bounded single-message `Reassembler`
+- a bounded single-message `Reassembler`, plus `ReassemblySession` timeout/retry/fallback behavior and a manager for interleaved message IDs
 - a small demo script and pytest suite
 
 This local implementation is deliberately not a full runtime stack. It does not require FastAPI, Pydantic, Redis, Postgres, a browser client, or a TypeScript service to run the tests and demo in this repository. The checked-in pytest suite and demo run against the local Python implementation only; no database, queue, HTTP service, or external transport layer is required for the current execution boundary.
 
 ### Broader ecosystem ideas and future research context
 
-The following technologies and architectures may appear in the article writing, designs, or roadmap discussions because they are real engineering contexts that shape agentic production systems, but they are not active requirements of the current repository implementation:
+The following technologies and architectures may appear in article writing or future research because they shape agentic production systems, but they are not active requirements of the current repository implementation:
 
 - FastAPI or other web service runtimes
 - Pydantic models and request validation layers
@@ -244,7 +245,7 @@ The following are systemic context or future research directions rather than act
 - Pydantic, dataclasses-driven API models, or browser-side schema validation
 - Redis, Postgres, Kafka, or queue-backed persistence
 - TypeScript client code such as `client_reassembler.ts`
-- browser rendering, progressive UI state machines, or transport-level retries
+- browser rendering, progressive UI state machines, or transport-connected retry callbacks
 - LLM provider SDKs and telemetry toolchains that belong in a larger deployed system
 
 This distinction matters because the repository's executable boundary is intentionally small: readers are meant to inspect the wire contract, chunk semantics, checksum validation, and bounded reassembly in local Python code without needing a database, queue, or external service runtime.
@@ -489,7 +490,7 @@ This repository contains engineering articles and a small executable reference s
 
 FastAPI, LangGraph, Pydantic, Redis, PostgreSQL, OpenTelemetry, Docker, and an LLM provider are ecosystem options and future research context in this roadmap and in authoring prompts. They are not imported or started by the current reference implementation, and no Redis/PostgreSQL containers or credentials are needed to run the current tests.
 
-The response-delivery article also describes a browser client, HTTP gateway, retry/timeout behavior, progressive UI rendering, and a TypeScript reassembler. Those are production-system context or future integration work, not checked-in components. The current wire-envelope code is a deliberately small teaching contract: it uses CRC32 for accidental-corruption checks (not sender authentication), supports one message per reassembler instance, and omits transport-level retry, timeout, authentication, and client rendering policy. Its limitations are documented in `04-reference-implementation/README.md` and the relevant article.
+The response-delivery article discusses a broader browser and HTTP production system, but those integrations are not checked in. The local reference contract validates CRC32 and HMAC-SHA256, and `ReassemblySession` models timeout, retry, and full-buffer fallback through caller-provided callbacks. It does not connect those callbacks to a real transport, manage production keys, or implement client rendering. The implementation boundary is documented in `04-reference-implementation/README.md` and the response-delivery article.
 
 When adding a future dependency, service, or client, update this inventory in the same change as its package configuration, local setup, CI, and article boundary. Mentioning a technology as a trade-off or research subject is not a declaration that it is a required dependency.
 

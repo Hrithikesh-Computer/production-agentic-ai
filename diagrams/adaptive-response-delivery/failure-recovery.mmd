@@ -8,12 +8,12 @@ flowchart TD
     F -->|Yes| H{Sequence already buffered?}
     H -->|Identical payload| I[Ignore duplicate while message is incomplete]
     H -->|Different payload| G
-    G -. guardrail: changing total_chunks or conflicting duplicate frames are rejected; no partial reassembly continues; identical duplicates are ignored but not treated as a retry mechanism .-> E
-    I -. note: identical duplicates are safe; this is not a transport retry mechanism; multi-byte UTF-8 boundaries and invalid sequence state remain rejected .-> K
+    G -. guardrail: changing total_chunks or conflicting duplicate frames are rejected; no partial reassembly continues; identical duplicates are ignored and reassembly stays single-message .-> E
+    I -. note: identical duplicates are safe; a session can retry missing indexes and then fall back to a full-buffer callback after the retry budget is exhausted .-> K
     H -->|New sequence| J[Buffer frame by sequence]
     I --> K{Are all sequence indexes present?}
     J --> K
-    K -->|No| L[Wait in memory; no local timeout or retry]
+    K -->|No| L[Wait in memory; poll timeout and request missing chunks]
     K -->|Yes| M{merge_mode}
     M -->|json-object| N[Parse object fragments and reject duplicate keys]
     M -->|concat| O[Concatenate UTF-8 payload bytes]

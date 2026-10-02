@@ -5,10 +5,8 @@
 **Reading time:** ~16 minutes
 **Difficulty:** Advanced
 **Category:** Agent Architecture
-**Status:** Research Article
-
-> Status: Research article.
-> Evidence boundary: This article is a reasoned architecture analysis, not a repository-implemented security runtime; claims about deployed control systems remain hypotheses unless supported by direct runtime evidence.
+**Status:** Research article.
+**Evidence boundary:** This is reasoned architecture analysis, not a repository-implemented security runtime; claims about deployed control systems remain hypotheses unless supported by direct runtime evidence.
 
 ## Decision Summary
 

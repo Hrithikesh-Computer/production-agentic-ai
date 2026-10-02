@@ -1,6 +1,6 @@
 # Security Mapping: Document 03, WalkMe Workflow Automation Copilot
 
-Source: `01-agent-architecture/03-walkme-workflow-automation-copilot.md`.
+Archived source: `archive/design-sketches-2026/03-walkme-workflow-automation-copilot.md`.
 
 ## Actions this agent can take
 

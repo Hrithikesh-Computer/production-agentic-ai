@@ -5,10 +5,8 @@
 **Reading time:** ~15 minutes
 **Difficulty:** Advanced
 **Category:** Context Engineering
-**Status:** Research Article
-
-> Status: Research article.
-> Evidence boundary: This article documents a design and lifecycle model; the repository does not include a production context manager, and measured latency or cost claims remain illustrative unless backed by a concrete implementation and benchmark.
+**Status:** Research article.
+**Evidence boundary:** This documents a design and lifecycle model; the repository does not include a production context manager, and measured latency or cost claims remain illustrative unless backed by a concrete implementation and benchmark.
 
 ## Decision Summary
 

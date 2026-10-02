@@ -1,35 +1,46 @@
 # Repository Map
 
-Inventory snapshot: 2026-10-01. This map reflects files present before Actions 1-7. Generated deliverables from those actions will be appended under **Action outputs** as they are created.
+Inventory snapshot: 2026-10-02. Active material is listed first; archive contents are historical and are not current guidance.
 
 Tags describe the repository evidence currently present, not production readiness:
 
 - `[doc-only]`: Markdown content without a matching local executable implementation.
-- `[has reference implementation]`: documented by or associated with checked-in executable reference code.
-- `[reference implementation incomplete]`: executable code exists, but the requested boundary or behavior is still missing or unverified.
+- `[tested local reference]`: bounded executable behavior with local tests; not a production service.
+- `[partial mock prototype]`: limited local mock behavior; no claim of live integration or production readiness.
+
+## Active Flagships
+
+1. [Adaptive response delivery](03-production-lessons/01-adaptive-response-delivery.md) — investigation and tested local protocol slice.
+2. [Context lifecycle](02-context-and-memory/01-beyond-token-windows.md) — research and design analysis; no production context manager is included.
+3. [Authority and intent](01-agent-architecture/01-agent-authority-and-intent.md) — reasoned security architecture; no matching enforcement runtime is included.
+4. [Reference implementation](04-reference-implementation/) — `adaptive-response-filter`, its tests, demo, and evidence boundary.
+
+The [EMR-to-PostgreSQL architecture analysis](01-agent-architecture/02-emr-to-postgresql-ingestion-architecture.md) is an additional conceptual article, not a fourth flagship theme.
+
+## Historical Archives
+
+- [Design sketches, archived 2026-10](archive/design-sketches-2026/README.md) — enterprise pattern notes and the relocated EMR stub.
+- [Evaluations, archived 2026-10](archive/evaluations-2026/README.md) — internal review/evaluation artifacts.
+- [Review artifacts, archived 2026-10](archive/review-artifacts-2026/README.md) — dated reconciliation, authority, cost/performance, audit, and summary records.
 
 ## Root
 
 - `CONTRIBUTING.md` [doc-only]
 - `LICENSE` (not Markdown)
-- `README.md` [has reference implementation]
+- `README.md` [entry point]
 - `ROADMAP.md` [doc-only]
 - `STYLE_GUIDE.md` [doc-only]
-- `technical-audit-report.md` [doc-only]
+- `CONTEXT-LIFECYCLE-DECISION.md` [doc-only]
+- `EVIDENCE.md` [doc-only]
+- `SECURITY-03.md`, `SECURITY-04.md`, `SECURITY-09.md` [doc-only / local prototype evidence]
 - `pyproject.toml` (Python project configuration)
 
 ## `01-agent-architecture/`
 
 - `01-agent-authority-and-intent.md` [doc-only]
 - `02-emr-to-postgresql-ingestion-architecture.md` [doc-only]
-- `03-walkme-workflow-automation-copilot.md` [doc-only]
-- `04-fintech-governance-risk-agentic-platform.md` [doc-only]
-- `05-autonomous-ingestion-data-validation-pipeline.md` [doc-only]
-- `06-enterprise-operational-workflow-event-system.md` [doc-only]
-- `07-enterprise-audit-compliance-risk-copilot.md` [doc-only]
-- `08-sales-intelligence-knowledge-graph-copilot.md` [doc-only]
-- `09-crm-operational-copilot-salesforce-agentforce-poc.md` [reference implementation incomplete]
-- `10-mcp-service-integration-gateway.md` [doc-only]
+
+The former design sketches 03-10 are archived in `archive/design-sketches-2026/`; the CRM mock prototype remains under `prototypes/crm_operational_copilot/` with its own evidence boundary.
 
 No source files were found in this directory.
 
@@ -41,37 +52,23 @@ No source files were found in this directory.
 
 ## `03-production-lessons/`
 
-- `01-adaptive-response-delivery.md` [has reference implementation]
-- `02-emr-spark-postgresql-ingestion-optimization.md` [doc-only]
+- `01-adaptive-response-delivery.md` [documented by tested local reference]
 
-No source files were found in this directory.
+The legacy EMR production-lessons stub has been moved to `archive/design-sketches-2026/`. The canonical architecture article remains under `01-agent-architecture/`.
 
 ## `04-reference-implementation/`
 
-- `README.md` [has reference implementation]
+- `README.md` [tested local reference]
 
 ### `04-reference-implementation/adaptive-response-filter/`
 
-- `chunker.py` [reference implementation incomplete]
-- `demo.py` [reference implementation incomplete]
-- `envelope.py` [reference implementation incomplete]
-- `filter.py` [reference implementation incomplete]
-- `metrics.py` [reference implementation incomplete]
-- `middleware.py` [reference implementation incomplete]
-- `policy.py` [reference implementation incomplete]
-- `reassembler.py` [reference implementation incomplete]
-- `test_reassembly_session.py` [reference implementation incomplete]
-- `test_chunker.py` [reference implementation incomplete]
-- `test_envelope.py` [reference implementation incomplete]
-- `test_reassembler.py` [reference implementation incomplete]
-- `EVIDENCE.md` [reference implementation incomplete]
+- `chunker.py`, `envelope.py`, `filter.py`, `middleware.py`, `policy.py`, `reassembler.py`, `metrics.py`, `demo.py` [tested local reference]
+- `test_chunker.py`, `test_envelope.py`, `test_reassembler.py`, `test_reassembly_session.py` [local tests]
+- `EVIDENCE.md` [scope, observed behavior, and remaining evidence requirements]
 
 ## `prototypes/crm_operational_copilot/`
 
-- `README.md` [reference implementation incomplete]
-- `crm_copilot.py` [reference implementation incomplete]
-- `test_crm_copilot.py` [reference implementation incomplete]
-- `EVIDENCE.md` [reference implementation incomplete]
+- `README.md`, `crm_copilot.py`, `test_crm_copilot.py`, `EVIDENCE.md` [partial mock prototype]
 
 The existing prototype is a mock-data, read-only implementation. It is backing code for Action 2, so do not scaffold a parallel implementation.
 
@@ -117,24 +114,3 @@ No additional source files were found under `diagrams/`.
 
 - `.github/copilot-instructions.md` [doc-only]
 - `.github/instructions/mermaid.instructions.md` [doc-only]
-
-## EMR path hygiene
-
-The canonical architecture document exists at `01-agent-architecture/02-emr-to-postgresql-ingestion-architecture.md`. An old-path stub remains at `03-production-lessons/02-emr-spark-postgresql-ingestion-optimization.md` and points to the canonical article. Both paths exist, so this is recorded as documentation hygiene for human review; neither file is removed or edited here. The old-path file is currently marked `UU` in the worktree, so preserve its unresolved worktree state.
-
-## Additional action deliverables
-
-Root-level review documents created after the initial inventory:
-
-- `04-07-RECONCILIATION.md` [doc-only]
-- `04-AUTHORITY-ADDENDUM.md` [doc-only]
-- `09-AUTHORITY-ADDENDUM.md` [doc-only]
-- `SECURITY-03.md` [doc-only]
-- `SECURITY-04.md` [doc-only]
-- `SECURITY-09.md` [reference implementation incomplete]
-- `COST-PERF-07.md` [doc-only]
-- `COST-PERF-08.md` [doc-only]
-- `CONTEXT-LIFECYCLE-DECISION.md` [doc-only]
-- `TOP-ACTIONS-SUMMARY.md` [doc-only]
-
-The original inventory above remains the Action 0 snapshot; these entries and the updated source lists reflect Action 1-7 work. `09-crm-operational-copilot-salesforce-agentforce-poc.md` now accurately records its local reference prototype and remains incomplete relative to its live CRM/LLM design.

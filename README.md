@@ -1,26 +1,27 @@
 # Production Agentic AI
 
-Building reliable agentic AI systems through engineering investigation, architecture decision-making, and production evidence.
+Engineering analysis and reference implementations for production agentic AI reliability.
 
-This repository is a research and engineering knowledge base for production agentic AI systems.
+## What this is
 
-Its executable scope is deliberately small: research articles, conceptual Mermaid diagrams, and a tested Python reference slice for adaptive response delivery. It is not a deployed AI platform.
+This is a focused research and reference repository on production agentic AI reliability. It centers on three themes:
 
-## Scope
+- Response-delivery bottlenecks and adaptive chunking
+- Context lifecycle management
+- Authority and intent semantics beyond simple identity and authorization
 
-This repository studies production AI engineering problems. It is not itself a production AI platform. Articles document engineering reasoning, trade-offs, and investigations. Reference implementations and experiments support that work without claiming to be a production platform.
+It contains reasoned architecture analysis, explicit evidence boundaries, and a narrow, tested local reference implementation: `adaptive-response-filter`.
 
-## What this repository covers
+## What this is not
 
-- production lessons from agentic systems
-- architecture decisions and trade-offs
-- context, memory, and retrieval challenges
-- response delivery and latency investigations
-- reference implementations that accompany the writing
+- Not a production platform, framework, or agent runtime.
+- Not a live CRM, EMR, governance, or multi-agent system.
+- Not a collection of enterprise design sketches; those are retained under `archive/`.
+- Does not claim production measurements or deployed results for illustrative article numbers.
 
 ## Current Implementation Boundary
 
-The implemented slice provides delivery policy, UTF-8-safe chunking, validated `WireEnvelope` values with one CRC32 implementation, bounded single-message reassembly, tests, CI, linting, type checking, and a demo. It is intentionally narrow and documentation-first.
+The implemented slice provides delivery policy, UTF-8-safe chunking, validated `WireEnvelope` values with CRC32 and HMAC-SHA256, bounded reassembly, message-scoped timeout/retry/fallback behavior, tests, CI, linting, type checking, and a demo. Session callbacks are local protocol behavior; they are not connected to a production transport.
 
 There is no FastAPI server, LangGraph runtime, LLM client, database, Redis, PostgreSQL, OpenTelemetry runtime, Docker deployment, browser/client reassembler, or production transport in this repository.
 
@@ -30,24 +31,19 @@ There is no FastAPI server, LangGraph runtime, LLM client, database, Redis, Post
 |---|---|---|
 | Executable implementation | Local Python reference slice for adaptive response delivery | Tests, demo, and code under [04-reference-implementation/adaptive-response-filter](04-reference-implementation/adaptive-response-filter) |
 | Research articles | Documented engineering analysis and trade-off discussions | Markdown articles and diagrams in this repository |
-| Conceptual architecture | Pattern sketches and architecture proposals | Design-only material; not backed by a matching runtime in this repo |
+| Conceptual architecture | Authority/intent framing and the canonical ingestion architecture | Design-only material; not backed by a matching runtime in this repo |
 | External / absent | EMR, Spark, PostgreSQL/RDS pipelines, production deployments, and cloud service stacks referenced in examples | Not present in the checked-in repository; not measured here |
 
-## Recommended reading path
+## Start Here
 
-1. [03-production-lessons/](./03-production-lessons/) for production investigations and lessons learned
-2. [01-agent-architecture/](./01-agent-architecture/) for architectural patterns and design trade-offs
-3. [01-agent-architecture/02-emr-to-postgresql-ingestion-architecture.md](./01-agent-architecture/02-emr-to-postgresql-ingestion-architecture.md) — Architecture Optimization for EMR to PostgreSQL Ingestion
-4. [01-agent-architecture/03-walkme-workflow-automation-copilot.md](./01-agent-architecture/03-walkme-workflow-automation-copilot.md) — Enterprise Walkthrough & Workflow Automation Copilot
-5. [01-agent-architecture/04-fintech-governance-risk-agentic-platform.md](./01-agent-architecture/04-fintech-governance-risk-agentic-platform.md) — Multi-Use Case FinTech Governance & Risk Agentic Platform
-6. [02-context-and-memory/](./02-context-and-memory/) for context budgeting and memory-related systems work
-7. [04-reference-implementation/](./04-reference-implementation/) for the accompanying implementation examples
+- [03-production-lessons/01-adaptive-response-delivery.md](./03-production-lessons/01-adaptive-response-delivery.md) — response-delivery bottlenecks and the local implementation boundary
+- [02-context-and-memory/01-beyond-token-windows.md](./02-context-and-memory/01-beyond-token-windows.md) — context lifecycle management
+- [01-agent-architecture/01-agent-authority-and-intent.md](./01-agent-architecture/01-agent-authority-and-intent.md) — authority and intent semantics
+- [04-reference-implementation/](./04-reference-implementation/) — tested `adaptive-response-filter` reference slice
 
-## Featured article
+The [EMR-to-PostgreSQL architecture analysis](./01-agent-architecture/02-emr-to-postgresql-ingestion-architecture.md) remains available as a separate conceptual article; it is not one of the three flagship themes.
 
-- [03-production-lessons/01-adaptive-response-delivery.md](./03-production-lessons/01-adaptive-response-delivery.md) — Large Response Delivery in Agentic AI: A Production Investigation
-- [01-agent-architecture/02-emr-to-postgresql-ingestion-architecture.md](./01-agent-architecture/02-emr-to-postgresql-ingestion-architecture.md) — Architecture Optimization for EMR to PostgreSQL Ingestion
-- [01-agent-architecture/03-walkme-workflow-automation-copilot.md](./01-agent-architecture/03-walkme-workflow-automation-copilot.md) — Enterprise Walkthrough & Workflow Automation Copilot
+Historical design sketches, evaluations, and dated review records are retained under [archive/](./archive/) and are not current project guidance.
 
 ## Repository structure
 
@@ -56,6 +52,7 @@ There is no FastAPI server, LangGraph runtime, LLM client, database, Redis, Post
 - [CONTRIBUTING.md](./CONTRIBUTING.md) — contribution process
 - [03-production-lessons/](./03-production-lessons/) — production investigations and engineering case studies
 - [04-reference-implementation/](./04-reference-implementation/) — code that supports the articles
+- [archive/](./archive/) — historical design sketches, internal evaluations, and review artifacts
 
 ## Quick Start
 
@@ -87,7 +84,7 @@ This repository is intentionally a reliability-first, architecture-first knowled
 
 The benchmark layer under [benchmarks/README.md](./benchmarks/README.md) exists to strengthen the strongest ideas without pretending they are production deployment evidence. Every benchmark is designed to be explicit about what is being measured and what remains outside the current evidence boundary.
 
-The repository's strongest public evidence is currently:
+The repository's strongest local evidence is currently:
 
 - the local adaptive response-delivery implementation and tests under [04-reference-implementation/adaptive-response-filter](./04-reference-implementation/adaptive-response-filter)
 - the response-delivery benchmark under [benchmarks/response-delivery](./benchmarks/response-delivery)
@@ -121,9 +118,9 @@ Read the articles as engineering arguments and research records, not as API docu
 
 Use the diagrams as architecture-level explanations of the system being discussed. A diagram may describe a production deployment, a proposed design, or a local simulation that is not present in the code.
 
-The reference implementation is an isolated, pedagogical Python slice. It makes selected policies and contracts executable, but it is not an operational Agentic AI service: it has no model runtime, no database, and no serving stack.
+The reference implementation is an isolated, pedagogical Python slice. It makes selected policies, authenticated envelopes, session recovery, and reassembly contracts executable, but it is not an operational Agentic AI service: it has no model runtime, database, browser client, or serving stack.
 
-Important boundary rule: the repository is not a live AI product, not a deployment environment, and not a monorepo for a production stack. It is a bounded, inspectable implementation of a protocol idea and a research archive.
+Important boundary rule: the repository is not a live AI product, not a deployment environment, and not a monorepo for a production stack. It is a bounded, inspectable reference implementation and a focused research archive.
 
 ### Architecture & Presales Evaluation
 
@@ -175,7 +172,7 @@ Systemic context or future-facing ideas that may appear in the article narrative
 
 These broader possibilities are valid research ideas and architecture vocabulary, but they are not required to run the repository's local tests, demo, or lint checks. The current execution environment is intentionally small.
 
-The current local reference slice is intentionally narrow. It can be exercised by the checked-in tests and demo without requiring external services. That is deliberate: the repository's executable boundary is limited to a narrow protocol idea.
+The current local reference slice is intentionally narrow. It can be exercised by the checked-in tests and demo without requiring external services. Its retry and fallback callbacks model local session behavior; they are not connected to a real transport.
 
 ## License
 
