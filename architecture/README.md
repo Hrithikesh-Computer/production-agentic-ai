@@ -11,5 +11,8 @@ These artifacts form a customer-world design exercise, not an implemented or dep
 5. [STRIDE threat model](04-threat-model.md)
 6. [NFR and illustrative sizing](05-nfr-and-sizing.md)
 7. [AWS deployment candidate](06-deployment-views.md) and [diagram source](diagrams/aws-deployment.mmd)
+8. [Cost model](07-cost-model.md)
+9. [Customer discovery questionnaire](09-discovery-questionnaire.md)
+10. [30-minute review path](../README.md#how-to-review-this-in-30-minutes)
 
-All service/vendor mappings, security controls, numeric NFR examples, and recommendations are provisional until confirmed with a customer. The repository's local CRM is a static mock and does not implement this architecture.
+All service/vendor mappings, security controls, numeric NFR examples, and recommendations are provisional until confirmed with a customer. The CRM prototype contains a narrow in-memory approval simulation; it does not implement the proposed distributed architecture or connect to a real CRM.

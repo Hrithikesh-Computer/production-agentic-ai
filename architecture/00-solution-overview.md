@@ -26,9 +26,9 @@ These are target outcomes, not demonstrated repository capabilities.
 
 ## Repository evidence versus target design
 
-The repository contains a local CRM prototype with static mock records, deterministic action selection, local scope checks, read-only behavior, and JSONL run logging. It has no real CRM/REST integration, LLM, write method, identity-to-scope mapping, or human-approval workflow ([prototype README](../prototypes/crm_operational_copilot/README.md), [evidence](../prototypes/crm_operational_copilot/EVIDENCE.md)). The authority evaluator is a separate bounded example; it is not wired into the CRM prototype ([authority evaluator](../04-reference-implementation/authority_policy.py)).
+The original CRM CLI has static mock records, deterministic action selection, local read-scope checks, read-only behavior, and JSONL run logging. A separate local simulation now exercises a bounded in-memory write proposal, `refer` policy outcome, distinct reviewer method, fresh scope checks, and audit events. Neither has a real CRM/REST integration, LLM, authenticated identity-to-scope mapping, or durable approval workflow ([prototype README](../prototypes/crm_operational_copilot/README.md), [evidence](../prototypes/crm_operational_copilot/EVIDENCE.md)). The authority evaluator is a separate bounded library used by the simulation, not a production policy service ([authority evaluator](../04-reference-implementation/authority_policy.py)).
 
-Everything in the C4 views and subsequent decisions is **proposed**. The approval queue, authority gateway, CRM connector, identity provider, model service, and durable audit store are target containers or external systems, not components found in the repository.
+The C4 views and subsequent decisions describe a **proposed target**. The local simulation demonstrates only a narrow in-process sequence; the durable approval queue, deployed authority gateway, live CRM connector, identity provider, model service, and durable audit store are target containers or external systems, not implemented components in the repository.
 
 ## Primary flow
 
@@ -61,6 +61,8 @@ No numeric SLO, deployment topology, cost, compliance mapping, or customer commi
 - [STRIDE threat model](04-threat-model.md)
 - [NFR and illustrative sizing](05-nfr-and-sizing.md)
 - [AWS deployment candidate](06-deployment-views.md)
+- [Cost model worksheet](07-cost-model.md)
+- [Customer discovery questionnaire](09-discovery-questionnaire.md)
 - [ADR-001: Response delivery](02-decisions/ADR-001-response-delivery.md)
 - [ADR-002: Approval evidence and signing](02-decisions/ADR-002-approval-signing.md)
 - [ADR-003: Context lifecycle deferral](02-decisions/ADR-003-context-lifecycle-deferral.md)
