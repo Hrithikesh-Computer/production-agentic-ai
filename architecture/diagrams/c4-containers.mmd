@@ -1,0 +1,35 @@
+C4Container
+  title Proposed CRM Operations Copilot - Containers
+
+  Person(employee, "Account team member", "Uses the copilot")
+  Person(reviewer, "Authorized reviewer", "Approves or rejects proposed changes")
+
+  System_Boundary(app, "Customer-controlled CRM Copilot") {
+    Container(web, "Web application", "Browser application", "Collects requests, shows evidence and responses, and presents approval status")
+    Container(agent, "Agent API and orchestrator", "Service", "Coordinates identity-bound requests, scoped retrieval, model calls, and response delivery")
+    Container(authority, "Authority and approval gateway", "Policy service", "Evaluates action scope, binds reviewer decisions to proposals, and rechecks authority before execution")
+    Container(crmAdapter, "CRM connector", "Service adapter", "Calls CRM APIs using an approved identity and narrow scopes")
+    ContainerQueue(approvalQueue, "Approval queue", "Durable queue / workflow store", "Tracks pending proposals, reviewer decisions, expiry, and status")
+    ContainerDb(auditStore, "Audit event store", "Append-oriented storage", "Persists correlated authorization, approval, tool, and outcome events")
+  }
+
+  System_Ext(idp, "Enterprise identity provider", "Authenticates users and provides identity claims")
+  System_Ext(crm, "Customer CRM", "System of record")
+  System_Ext(model, "Model provider", "Generates response text and structured action proposals")
+
+  Rel(employee, web, "Uses", "HTTPS")
+  Rel(reviewer, web, "Reviews assigned proposal", "HTTPS")
+  Rel(web, agent, "Submits request / receives response", "HTTPS")
+  Rel(agent, idp, "Validates identity and obtains claims", "OIDC / SAML - to be confirmed")
+  Rel(agent, authority, "Requests action decision and submits proposal", "Private API")
+  Rel(agent, crmAdapter, "Requests CRM operation", "Private API")
+  Rel(crmAdapter, authority, "Checks current authorization before operation", "Private API")
+  Rel(authority, crmAdapter, "Returns action-bound decision", "Private API")
+  Rel(crmAdapter, crm, "Reads after authorization / executes approved write", "CRM API - to be confirmed")
+  Rel(agent, model, "Sends minimized context / receives output", "Provider API - to be confirmed")
+  Rel(agent, approvalQueue, "Creates proposal and reads status", "Private API")
+  Rel(web, authority, "Submits reviewer decision", "Private API")
+  Rel(authority, approvalQueue, "Validates and records approval", "Private API")
+  Rel(agent, auditStore, "Appends request and model/tool events", "Private API")
+  Rel(authority, auditStore, "Appends decision and approval events", "Private API")
+  Rel(crmAdapter, auditStore, "Appends execution outcome", "Private API")

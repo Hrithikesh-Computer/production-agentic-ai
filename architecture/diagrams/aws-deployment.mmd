@@ -1,0 +1,36 @@
+flowchart LR
+  Employee["Employee / reviewer browser"]
+  IdP["Customer identity provider"]
+  CRM["Customer CRM"]
+  Model["Approved model provider"]
+
+  subgraph AWS["Customer AWS account and selected region"]
+    subgraph Edge["Public edge"]
+      WAF["AWS WAF"] --> CDN["CloudFront + private S3 UI origin"]
+      CDN --> APIGW["API Gateway HTTP API\nJWT authorizer"]
+    end
+
+    subgraph VPC["VPC: private application subnets across AZs"]
+      Link["VPC Link + internal load balancer"] --> Agent["ECS Fargate\nAgent API / orchestrator"]
+      Agent --> Authority["ECS Fargate\nAuthority / approval gateway"]
+      Agent --> Connector["ECS Fargate\nCRM connector"]
+      Authority --> Queue["SQS approval work queue"]
+      Authority --> State["DynamoDB approval state"]
+      Connector --> Egress["Controlled CRM egress\nNAT/firewall or VPN/DX"]
+      Agent --> AuditPipe["Restricted audit event delivery"]
+      Authority --> AuditPipe
+      Connector --> AuditPipe
+      AuditPipe --> Audit["S3 audit archive\nObject Lock if required"]
+      Agent --> Logs["CloudWatch diagnostics"]
+      Authority --> Logs
+      Connector --> Logs
+      Secrets["Secrets Manager + KMS"] -. "scoped task-role access" .-> Agent
+      Secrets -. "scoped task-role access" .-> Connector
+      APIGW --> Link
+    end
+  end
+
+  Employee --> WAF
+  IdP -. "issuer/JWKS and token validation" .-> APIGW
+  Agent --> Model
+  Egress --> CRM

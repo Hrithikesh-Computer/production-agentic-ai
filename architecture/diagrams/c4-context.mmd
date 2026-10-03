@@ -1,0 +1,24 @@
+C4Context
+  title Proposed CRM Operations Copilot - System Context
+
+  Person(employee, "Account team member", "Requests account context and proposes CRM actions")
+  Person(reviewer, "Authorized reviewer", "Reviews and approves or rejects proposed writes")
+
+  System_Boundary(target, "Customer-controlled application boundary") {
+    System(copilot, "CRM Operations Copilot", "Retrieves authorized CRM context, drafts responses, and routes write proposals for approval")
+    SystemQueue(approval, "Approval workflow", "Stores pending action proposals and reviewer decisions")
+    SystemDb(audit, "Audit event store", "Retains correlated authorization, approval, tool, and outcome events")
+  }
+
+  System_Ext(idp, "Enterprise identity provider", "Authenticates employees and reviewers")
+  System_Ext(crm, "Customer CRM", "System of record; enforces CRM-side permissions")
+  System_Ext(model, "Model provider", "Processes minimized task context and returns a response or action proposal")
+
+  Rel(employee, copilot, "Submits request / views response", "HTTPS")
+  Rel(reviewer, approval, "Reviews proposal and records decision", "HTTPS")
+  Rel(copilot, idp, "Validates identity and groups", "OIDC / SAML - to be confirmed")
+  Rel(copilot, crm, "Reads records / executes approved action", "CRM API - to be confirmed")
+  Rel(copilot, model, "Sends scoped context / receives output", "Provider API - to be confirmed")
+  Rel(copilot, approval, "Submits proposal / checks decision", "HTTPS")
+  Rel(copilot, audit, "Appends decision and execution events", "Private API - to be designed")
+  Rel(approval, audit, "Appends reviewer decision", "Private API - to be designed")
