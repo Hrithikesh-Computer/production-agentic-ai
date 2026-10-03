@@ -30,7 +30,13 @@ jobs:
         run: python -m pytest -q
 
       - name: Type check with mypy
-        run: python -m mypy 04-reference-implementation/adaptive-response-filter
+        env:
+          MYPYPATH: 04-reference-implementation:prototypes/crm_operational_copilot
+        run: >-
+          python -m mypy
+          04-reference-implementation/adaptive-response-filter
+          prototypes/crm_operational_copilot/approval_workflow.py
+          prototypes/crm_operational_copilot/test_approval_workflow.py
 
       - name: Execute Reference Demo
         run: python 04-reference-implementation/adaptive-response-filter/demo.py
