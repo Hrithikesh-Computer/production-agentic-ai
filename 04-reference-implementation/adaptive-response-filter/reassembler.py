@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Callable, Mapping
 
@@ -215,9 +216,12 @@ class ReassemblySessionManager:
     request_full_buffer: Callable[[str], bytes]
     max_sessions: int = 1024
     session_ttl_seconds: float = 300.0
+    tombstone_ttl_seconds: float = 3600.0
+    max_tombstones: int = 4096
     policy: DeliveryPolicy = field(default_factory=DeliveryPolicy)
     clock: Callable[[], float] = time.monotonic
     sessions: dict[str, ReassemblySession] = field(default_factory=dict, init=False)
+    tombstones: OrderedDict[str, float] = field(default_factory=OrderedDict, init=False)
     _session_activity: dict[str, float] = field(
         default_factory=dict, init=False, repr=False
     )
@@ -235,6 +239,21 @@ class ReassemblySessionManager:
             raise TypeError("session_ttl_seconds must be a number")
         if not math.isfinite(self.session_ttl_seconds) or self.session_ttl_seconds <= 0:
             raise ValueError("session_ttl_seconds must be finite and positive")
+        if isinstance(self.tombstone_ttl_seconds, bool) or not isinstance(
+            self.tombstone_ttl_seconds, (int, float)
+        ):
+            raise TypeError("tombstone_ttl_seconds must be a number")
+        if (
+            not math.isfinite(self.tombstone_ttl_seconds)
+            or self.tombstone_ttl_seconds <= 0
+        ):
+            raise ValueError("tombstone_ttl_seconds must be finite and positive")
+        if isinstance(self.max_tombstones, bool) or not isinstance(
+            self.max_tombstones, int
+        ):
+            raise TypeError("max_tombstones must be an integer")
+        if self.max_tombstones <= 0:
+            raise ValueError("max_tombstones must be positive")
 
     def _evict_expired_sessions(self, now: float) -> None:
         expired = [
@@ -246,12 +265,29 @@ class ReassemblySessionManager:
             self.sessions.pop(message_id, None)
             self._session_activity.pop(message_id, None)
 
+    def _purge_expired_tombstones(self, now: float) -> None:
+        expired = [
+            message_id
+            for message_id, expires_at in self.tombstones.items()
+            if now >= expires_at
+        ]
+        for message_id in expired:
+            self.tombstones.pop(message_id, None)
+
+    def _remember_completed(self, message_id: str, now: float) -> None:
+        while len(self.tombstones) >= self.max_tombstones:
+            self.tombstones.popitem(last=False)
+        self.tombstones[message_id] = now + self.tombstone_ttl_seconds
+
     def add_chunk(self, chunk: WireEnvelope | Mapping[str, object]) -> bytes | None:
         envelope = chunk
         now = self.clock()
         self._evict_expired_sessions(now)
+        self._purge_expired_tombstones(now)
         if not isinstance(envelope, WireEnvelope):
             envelope = WireEnvelope.from_mapping(envelope)
+        if envelope.message_id in self.tombstones:
+            raise ValueError("message_id is tombstoned; replay rejected")
         session = self.sessions.get(envelope.message_id)
         created = session is None
         if session is None:
@@ -273,7 +309,12 @@ class ReassemblySessionManager:
             self._session_activity[envelope.message_id] = now
         try:
             result = session.add_chunk(envelope)
-            self._session_activity[envelope.message_id] = now
+            if session.reassembler.completed:
+                self.sessions.pop(envelope.message_id, None)
+                self._session_activity.pop(envelope.message_id, None)
+                self._remember_completed(envelope.message_id, now)
+            else:
+                self._session_activity[envelope.message_id] = now
             return result
         except Exception:
             if created:

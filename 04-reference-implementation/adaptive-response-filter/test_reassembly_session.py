@@ -57,7 +57,60 @@ def test_manager_keeps_two_in_flight_messages_separate():
     assert manager.add_chunk(_chunk("response-b", 0, 2, b"B")) is None
     assert manager.add_chunk(_chunk("response-a", 1, 2, b"1")) == b"A1"
     assert manager.add_chunk(_chunk("response-b", 1, 2, b"2")) == b"B2"
-    assert set(manager.sessions) == {"response-a", "response-b"}
+    assert manager.sessions == {}
+    assert set(manager.tombstones) == {"response-a", "response-b"}
+
+
+def test_manager_rejects_late_chunk_for_completed_message():
+    manager = ReassemblySessionManager(
+        authentication_key=AUTH_KEY,
+        request_retry=lambda _message_id, _missing: None,
+        request_full_buffer=lambda _message_id: b"fallback",
+    )
+    completed = _chunk("complete", 0, 1, b"done")
+
+    assert manager.add_chunk(completed) == b"done"
+    try:
+        manager.add_chunk(completed)
+    except ValueError as error:
+        assert "tombstoned" in str(error)
+    else:
+        raise AssertionError("manager accepted a late chunk for a completed id")
+
+
+def test_manager_allows_message_id_after_tombstone_expiry():
+    now = [0.0]
+    manager = ReassemblySessionManager(
+        authentication_key=AUTH_KEY,
+        request_retry=lambda _message_id, _missing: None,
+        request_full_buffer=lambda _message_id: b"fallback",
+        tombstone_ttl_seconds=5.0,
+        clock=lambda: now[0],
+    )
+    assert manager.add_chunk(_chunk("reusable", 0, 1, b"old")) == b"old"
+
+    now[0] = 5.0
+    assert manager.add_chunk(_chunk("reusable", 0, 2, b"new-")) is None
+    assert "reusable" in manager.sessions
+    assert "reusable" not in manager.tombstones
+
+
+def test_manager_evicts_oldest_tombstone_at_capacity():
+    now = [0.0]
+    manager = ReassemblySessionManager(
+        authentication_key=AUTH_KEY,
+        request_retry=lambda _message_id, _missing: None,
+        request_full_buffer=lambda _message_id: b"fallback",
+        max_tombstones=2,
+        clock=lambda: now[0],
+    )
+
+    for message_id in ("first", "second", "third"):
+        assert manager.add_chunk(_chunk(message_id, 0, 1, message_id.encode()))
+        now[0] += 1.0
+
+    assert list(manager.tombstones) == ["second", "third"]
+    assert len(manager.tombstones) == 2
 
 
 def test_manager_preserves_partial_session_after_bad_chunk_and_accepts_retry():
