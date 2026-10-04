@@ -198,7 +198,11 @@ class ReassemblySession:
         return result
 
     def poll_timeout(self, now: float | None = None) -> bytes | None:
-        """Request missing chunks, then replace unsafe partial state with full data."""
+        """Retry missing chunks, then replace unsafe partial state with full data.
+
+        Callback exceptions propagate without advancing retry or fallback state.
+        A later poll invokes the callback again, so callbacks must be idempotent.
+        """
         if self.fallback_result is not None or self.reassembler.completed:
             return None
         current_time = self.clock() if now is None else now

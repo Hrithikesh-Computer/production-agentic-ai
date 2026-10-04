@@ -42,6 +42,10 @@ accepts at most 10,000 chunks and 16,000,000 payload bytes.
 message ID can silently lose a chunk; callers sharing one manager across
 threads must serialize access.
 
+Exceptions from `request_retry` and `request_full_buffer` propagate to the
+caller. Retry counters and fallback state remain unchanged, so the next poll
+invokes the callback again. Both callbacks must be idempotent.
+
 These limits bound tracked protocol state, not all transient Python allocations
 or process memory. A sender that can authenticate requests and abandons
 incomplete sessions can hold session and byte capacity until the 300-second

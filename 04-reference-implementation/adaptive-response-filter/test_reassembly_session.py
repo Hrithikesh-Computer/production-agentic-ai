@@ -57,6 +57,66 @@ def test_missing_chunk_retries_then_falls_back_to_full_buffer():
     assert session.fallback_result == b"complete response"
 
 
+def test_retry_callback_exception_propagates_without_advancing_state():
+    now = [0.0]
+    retry_calls = []
+
+    def fail_retry(message_id, missing):
+        retry_calls.append((message_id, missing))
+        raise RuntimeError("retry unavailable")
+
+    session = ReassemblySession(
+        message_id="retry-error",
+        authentication_key=AUTH_KEY,
+        request_retry=fail_retry,
+        request_full_buffer=lambda _message_id: b"fallback",
+        policy=DeliveryPolicy(timeout_seconds=5.0, max_retries=1),
+        clock=lambda: now[0],
+    )
+    session.add_chunk(_chunk("retry-error", 0, 2, b"partial"))
+    now[0] = 5.0
+    deadline_before = session._deadline
+
+    for _ in range(2):
+        with pytest.raises(RuntimeError, match="retry unavailable"):
+            session.poll_timeout()
+        assert session.retries == 0
+        assert session.fallback_result is None
+        assert session._deadline == deadline_before
+
+    assert retry_calls == [("retry-error", [1]), ("retry-error", [1])]
+
+
+def test_full_buffer_callback_exception_propagates_without_advancing_state():
+    now = [0.0]
+    fallback_calls = []
+
+    def fail_full_buffer(message_id):
+        fallback_calls.append(message_id)
+        raise RuntimeError("full buffer unavailable")
+
+    session = ReassemblySession(
+        message_id="fallback-error",
+        authentication_key=AUTH_KEY,
+        request_retry=lambda _message_id, _missing: None,
+        request_full_buffer=fail_full_buffer,
+        policy=DeliveryPolicy(timeout_seconds=5.0, max_retries=0),
+        clock=lambda: now[0],
+    )
+    session.add_chunk(_chunk("fallback-error", 0, 2, b"partial"))
+    now[0] = 5.0
+    deadline_before = session._deadline
+
+    for _ in range(2):
+        with pytest.raises(RuntimeError, match="full buffer unavailable"):
+            session.poll_timeout()
+        assert session.retries == 0
+        assert session.fallback_result is None
+        assert session._deadline == deadline_before
+
+    assert fallback_calls == ["fallback-error", "fallback-error"]
+
+
 def test_manager_keeps_two_in_flight_messages_separate():
     manager = ReassemblySessionManager(
         authentication_key=AUTH_KEY,
