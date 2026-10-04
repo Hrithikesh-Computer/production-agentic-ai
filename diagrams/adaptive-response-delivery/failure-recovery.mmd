@@ -1,22 +1,23 @@
 flowchart TD
     A[Chunk builder splits on UTF-8 code-point boundaries] --> B{Element or code point exceeds byte cap?}
     B -->|Yes| C[Raise UnsplittableValueError; do not emit an oversized chunk]
-    B -->|No| D[Build WireEnvelope with CRC32 and metadata]
-    D --> E[Receiver validates fields, checksum, count limit, and payload limit]
-    E --> F{Sequence and total are valid and stable?}
+    B -->|No| D[Build WireEnvelope with HMAC authentication, CRC32, and metadata]
+    D --> E[Receiver validates HMAC, CRC32, fields, count limit, and payload limit]
+    E --> F{Message ID, sequence, and total are valid and stable?}
     F -->|No| G[Reject frame; receiver state remains unchanged]
     F -->|Yes| H{Sequence already buffered?}
-    H -->|Identical payload| I[Ignore duplicate while message is incomplete]
+    H -->|Identical payload| I[Ignore duplicate; do not refresh idle TTL]
     H -->|Different payload| G
     G -. guardrail: changing total_chunks or conflicting duplicate frames are rejected; no partial reassembly continues; identical duplicates are ignored and reassembly stays single-message .-> E
-    I -. note: identical duplicates are safe; a session can retry missing indexes and then fall back to a full-buffer callback after the retry budget is exhausted .-> K
+    I -. duplicate does not refresh session activity .-> K
     H -->|New sequence| J[Buffer frame by sequence]
     I --> K{Are all sequence indexes present?}
     J --> K
-    K -->|No| L[Wait in memory; poll timeout and request missing chunks]
+    K -->|No| L[Wait in memory; caller polls timeout, retry callback requests missing chunks, then full-buffer callback after retry budget]
     K -->|Yes| M{merge_mode}
     M -->|json-object| N[Parse object fragments and reject duplicate keys]
     M -->|concat| O[Concatenate UTF-8 payload bytes]
     N --> P[Return complete bytes and mark receiver complete]
     O --> P
     P --> Q[Create a new Reassembler for the next message]
+    L -. no built-in timeout scheduler .-> R[Absent: transport or user authentication, scheduler, receiver observability]
