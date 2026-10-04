@@ -113,6 +113,54 @@ def test_manager_evicts_oldest_tombstone_at_capacity():
     assert len(manager.tombstones) == 2
 
 
+def test_manager_growth_stays_within_session_and_tombstone_caps():
+    now = [0.0]
+    max_sessions = 4
+    max_tombstones = 3
+    manager = ReassemblySessionManager(
+        authentication_key=AUTH_KEY,
+        request_retry=lambda _message_id, _missing: None,
+        request_full_buffer=lambda _message_id: b"fallback",
+        max_sessions=max_sessions,
+        session_ttl_seconds=2.0,
+        max_tombstones=max_tombstones,
+        tombstone_ttl_seconds=100.0,
+        clock=lambda: now[0],
+    )
+    peak_sessions = 0
+    peak_tombstones = 0
+
+    for index in range(max_sessions * 10):
+        if len(manager.sessions) >= max_sessions:
+            now[0] += 2.1
+
+        bad = _chunk(f"bad-{index}", 0, 2, b"bad").to_dict()
+        bad["auth_tag"] = "0" * 64
+        try:
+            manager.add_chunk(bad)
+        except ValueError as error:
+            assert "authentication failed" in str(error)
+        else:
+            raise AssertionError("manager accepted a bad-tag envelope")
+
+        assert manager.add_chunk(_chunk(f"abandoned-{index}", 0, 2, b"part")) is None
+        peak_sessions = max(peak_sessions, len(manager.sessions))
+        assert len(manager.sessions) <= max_sessions
+        assert len(manager.tombstones) <= max_tombstones
+
+    now[0] += 2.1
+    for index in range(max_tombstones * 10):
+        message_id = f"completed-{index}"
+        assert manager.add_chunk(_chunk(message_id, 0, 1, b"done")) == b"done"
+        peak_sessions = max(peak_sessions, len(manager.sessions))
+        peak_tombstones = max(peak_tombstones, len(manager.tombstones))
+        assert len(manager.sessions) <= max_sessions
+        assert len(manager.tombstones) <= max_tombstones
+
+    assert peak_sessions == max_sessions
+    assert peak_tombstones == max_tombstones
+
+
 def test_manager_preserves_partial_session_after_bad_chunk_and_accepts_retry():
     manager = ReassemblySessionManager(
         authentication_key=AUTH_KEY,
