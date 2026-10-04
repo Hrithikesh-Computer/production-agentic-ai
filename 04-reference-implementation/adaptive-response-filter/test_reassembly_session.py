@@ -316,6 +316,64 @@ def test_session_ttl_uses_last_activity_deadline():
     assert "active" not in manager.sessions
 
 
+def test_identical_duplicate_does_not_refresh_session_ttl():
+    now = [0.0]
+    manager = ReassemblySessionManager(
+        authentication_key=AUTH_KEY,
+        request_retry=lambda _message_id, _missing: None,
+        request_full_buffer=lambda _message_id: b"fallback",
+        session_ttl_seconds=5.0,
+        clock=lambda: now[0],
+    )
+    duplicate = _chunk("duplicate-ttl", 0, 3, b"first")
+
+    assert manager.add_chunk(duplicate) is None
+    now[0] = 4.0
+    assert manager.add_chunk(duplicate) is None
+    assert manager._session_activity["duplicate-ttl"] == 0.0
+
+
+def test_new_chunk_refreshes_session_ttl():
+    now = [0.0]
+    manager = ReassemblySessionManager(
+        authentication_key=AUTH_KEY,
+        request_retry=lambda _message_id, _missing: None,
+        request_full_buffer=lambda _message_id: b"fallback",
+        session_ttl_seconds=5.0,
+        clock=lambda: now[0],
+    )
+
+    assert manager.add_chunk(_chunk("active", 0, 3, b"first")) is None
+    now[0] = 4.0
+    assert manager.add_chunk(_chunk("active", 1, 3, b"second")) is None
+    assert manager._session_activity["active"] == 4.0
+    now[0] = 8.0
+    assert manager.add_chunk(_chunk("trigger", 0, 2, b"new")) is None
+    assert "active" in manager.sessions
+
+
+def test_session_expires_after_ttl_despite_repeated_duplicates():
+    now = [0.0]
+    manager = ReassemblySessionManager(
+        authentication_key=AUTH_KEY,
+        request_retry=lambda _message_id, _missing: None,
+        request_full_buffer=lambda _message_id: b"fallback",
+        session_ttl_seconds=5.0,
+        clock=lambda: now[0],
+    )
+    duplicate = _chunk("duplicate-ttl", 0, 3, b"first")
+
+    assert manager.add_chunk(duplicate) is None
+    for timestamp in (1.0, 2.0, 3.0, 4.0):
+        now[0] = timestamp
+        assert manager.add_chunk(duplicate) is None
+        assert manager._session_activity["duplicate-ttl"] == 0.0
+
+    now[0] = 5.0
+    assert manager.add_chunk(_chunk("trigger", 0, 2, b"new")) is None
+    assert "duplicate-ttl" not in manager.sessions
+
+
 def test_session_rejects_chunk_for_another_message():
     session = ReassemblySession(
         message_id="expected",

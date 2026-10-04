@@ -341,7 +341,7 @@ class ReassemblySessionManager:
                 clock=self.clock,
             )
 
-        _, _, added_bytes, _ = session.reassembler._prepare_chunk(envelope)
+        _, _, added_bytes, duplicate = session.reassembler._prepare_chunk(envelope)
         active_payload_bytes = sum(
             active.reassembler._received_bytes
             for message_id, active in self.sessions.items()
@@ -368,7 +368,7 @@ class ReassemblySessionManager:
                 self.sessions.pop(envelope.message_id, None)
                 self._session_activity.pop(envelope.message_id, None)
                 self._remember_completed(envelope.message_id, now)
-            else:
+            elif not duplicate:
                 self._session_activity[envelope.message_id] = now
             return result
         except Exception:

@@ -33,8 +33,9 @@ bounded local replay window, not durable replay protection.
 ## State and Payload Bounds
 
 The session manager defaults to at most 1,024 concurrent sessions. Incomplete
-sessions expire 300 seconds after their last successfully accepted chunk;
-expiry is lazy and runs on the next manager intake. Active sessions share a
+sessions expire 300 seconds after their last successfully accepted new chunk;
+identical duplicates do not refresh this idle timer. Expiry is lazy and runs on
+the next manager intake. Active sessions share a
 total payload-byte cap of 268,435,456 bytes (256 MiB). Each `Reassembler`
 accepts at most 10,000 chunks and 16,000,000 payload bytes.
 
