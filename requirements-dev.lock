@@ -85,6 +85,8 @@ rich==15.0.0
     # via pip-audit
 ruff==0.16.10
     # via adaptive-response-reference (pyproject.toml)
+setuptools==84.0.0
+    # via adaptive-response-reference (pyproject.toml)
 sortedcontainers==2.4.0
     # via cyclonedx-python-lib
 tomli==2.4.1
