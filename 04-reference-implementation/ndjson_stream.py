@@ -23,6 +23,10 @@ class DecoderFailedError(NDJSONError):
     """Raised when a decoder is used after a failure or discard."""
 
 
+def _reject_nonstandard_json_constant(value: str) -> Any:
+    raise NDJSONError(f"non-standard JSON constant: {value}")
+
+
 class NDJSONDecoder:
     """Incrementally decode newline-delimited JSON objects from UTF-8 bytes.
 
@@ -75,7 +79,10 @@ class NDJSONDecoder:
                 offset = delimiter + 1
                 if not line.strip():
                     continue
-                value = json.loads(line.decode("utf-8"))
+                value = json.loads(
+                    line.decode("utf-8"),
+                    parse_constant=_reject_nonstandard_json_constant,
+                )
                 if not isinstance(value, dict):
                     raise NDJSONError("NDJSON records must be JSON objects")
                 records.append(value)
