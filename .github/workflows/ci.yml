@@ -38,5 +38,8 @@ jobs:
           prototypes/crm_operational_copilot/approval_workflow.py
           prototypes/crm_operational_copilot/test_approval_workflow.py
 
+      - name: Type check entire repository
+        run: python -m mypy .
+
       - name: Execute Reference Demo
         run: python 04-reference-implementation/adaptive-response-filter/demo.py
