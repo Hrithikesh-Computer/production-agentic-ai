@@ -55,19 +55,24 @@ class NDJSONDecoder:
             raise ValueError("decoder is finished")
         if not isinstance(data, bytes):
             raise TypeError("data must be bytes")
-        self._pending.extend(data)
         records: list[dict[str, Any]] = []
+        offset = 0
         try:
-            while True:
-                delimiter = self._pending.find(b"\n")
+            while offset < len(data):
+                delimiter = data.find(b"\n", offset)
                 if delimiter < 0:
-                    if len(self._pending) > self._max:
+                    fragment = data[offset:]
+                    if len(fragment) > self._max - len(self._pending):
                         raise RecordTooLargeError("record exceeds size limit")
+                    self._pending.extend(fragment)
                     break
-                if delimiter > self._max:
+                fragment = data[offset:delimiter]
+                if len(fragment) > self._max - len(self._pending):
                     raise RecordTooLargeError("record exceeds size limit")
-                line = bytes(self._pending[:delimiter])
-                del self._pending[: delimiter + 1]
+                self._pending.extend(fragment)
+                line = bytes(self._pending)
+                self._pending.clear()
+                offset = delimiter + 1
                 if not line.strip():
                     continue
                 value = json.loads(line.decode("utf-8"))

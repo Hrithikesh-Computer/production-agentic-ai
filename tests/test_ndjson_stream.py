@@ -77,6 +77,23 @@ def test_record_without_newline_is_bounded() -> None:
     assert decoder.failed
 
 
+def test_five_megabyte_feed_of_small_records_is_decoded_incrementally() -> None:
+    total_bytes = 5 * 1024 * 1024
+    full_record = b'{"v":"' + b"x" * 91 + b'"}\n'
+    final_record = b'{"v":"' + b"x" * 71 + b'"}\n'
+    full_record_count, remainder = divmod(total_bytes, len(full_record))
+    assert len(final_record) == remainder
+    data = full_record * full_record_count + final_record
+    decoder = NDJSONDecoder()
+
+    records = decoder.feed(data)
+    decoder.finish()
+
+    assert len(records) == full_record_count + 1
+    assert records[0] == {"v": "x" * 91}
+    assert records[-1] == {"v": "x" * 71}
+
+
 def test_oversized_complete_record_is_rejected() -> None:
     decoder = NDJSONDecoder(max_record_bytes=16)
     with pytest.raises(RecordTooLargeError):
