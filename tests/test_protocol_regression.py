@@ -106,7 +106,10 @@ def test_abandoned_sessions_are_evicted_after_ttl():
 
 
 # R4: bind chunks to one logical message so ID reuse cannot mix payload fragments.
-@pytest.mark.xfail(strict=True, reason="needs lifecycle work / protocol decision")
+@pytest.mark.xfail(
+    strict=True,
+    reason="needs wire-format change (digest); contract documented instead",
+)
 def test_reused_message_id_cannot_mix_payloads():
     manager = make_manager()
     first = build_envelope(
