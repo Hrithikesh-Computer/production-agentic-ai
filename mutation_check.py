@@ -39,7 +39,10 @@ AUTH = {
     "rules unfiltered": ("applicable = [rule for rule in rules if rule.action == action]", "applicable = list(rules)"),
     "agg: skip constraints": ("        if constraint.actions.issubset(actions):", "        if False:"),
     "agg: intersect not subset": ("constraint.actions.issubset(actions)", "bool(constraint.actions & actions)"),
-    "agg: skip per-action checks": ('        if decision.effect == "deny":\n            return decision\n\n    for constraint', "        pass\n\n    for constraint"),
+    "agg: skip per-action checks": (
+        '        if decision.effect == "deny":\n            return decision\n',
+        '        if False:\n            return decision\n',
+    ),
     "agg: empty allowed": ('    if not actions:\n        return Decision("deny", "no actions requested")\n', ""),
     "agg: drop refer propagation": ('    if referral is not None:\n        return referral\n', '    if False:\n        return referral\n'),
     "ticket: no re-eval at use": ("    current_decision = evaluate_authority(\n        grant=current_grant, principal=principal, action=action, at=at, rules=rules\n    )\n    if current_decision.effect == \"deny\":\n        return current_decision\n    if at >= ticket.expires_at:\n        return Decision(\"deny\", \"ticket expired\")\n    return current_decision", '    if at >= ticket.expires_at:\n        return Decision("deny", "ticket expired")\n    return Decision("allow", "ticket valid")'),
@@ -114,12 +117,24 @@ NDJSON = {
     "no poison on error": ("        except Exception:\n            self._fail()\n            raise", "        except Exception:\n            raise"),
     "feed ignores failed flag": ('        if self._failed:\n            raise DecoderFailedError("decoder failed; discard the response and retry")\n        if self._finished:\n            raise ValueError("decoder is finished")', '        if self._finished:\n            raise ValueError("decoder is finished")'),
     "finish ignores failed flag": ('        if self._failed:\n            raise DecoderFailedError("decoder failed; discard the response and retry")\n        if self._finished:\n            return', "        if self._finished:\n            return"),
-    "no max when no newline": ('                    if len(self._pending) > self._max:\n                        raise RecordTooLargeError("record exceeds size limit")\n', ""),
-    "no max on complete record": ('                if delimiter > self._max:\n                    raise RecordTooLargeError("record exceeds size limit")\n', ""),
-    "limit off by one (>=)": ("                    if len(self._pending) > self._max:", "                    if len(self._pending) >= self._max:"),
+    "no max when no newline": (
+        '                if delimiter < 0:\n                    fragment = data[offset:]\n                    if len(fragment) > self._max - len(self._pending):\n                        raise RecordTooLargeError("record exceeds size limit")\n',
+        '                if delimiter < 0:\n                    fragment = data[offset:]\n',
+    ),
+    "no max on complete record": (
+        '                fragment = data[offset:delimiter]\n                if len(fragment) > self._max - len(self._pending):\n                    raise RecordTooLargeError("record exceeds size limit")\n',
+        '                fragment = data[offset:delimiter]\n',
+    ),
+    "limit off by one (>=)": (
+        '                fragment = data[offset:delimiter]\n                if len(fragment) > self._max - len(self._pending):\n',
+        '                fragment = data[offset:delimiter]\n                if len(fragment) >= self._max - len(self._pending):\n',
+    ),
     "accept non-object": ('                if not isinstance(value, dict):\n                    raise NDJSONError("NDJSON records must be JSON objects")\n', ""),
     "decode errors=ignore": ('line.decode("utf-8")', 'line.decode("utf-8", errors="ignore")'),
-    "drop pending between feeds": ("self._pending.extend(data)", "self._pending = bytearray(data)"),
+    "drop pending between feeds": (
+        '                self._pending.extend(fragment)\n                line = bytes(self._pending)',
+        '                self._pending = bytearray(fragment)\n                line = bytes(self._pending)',
+    ),
     "finish ignores partial": ('        if self._pending:\n            self._fail()\n            raise IncompleteRecordError("stream ended inside an NDJSON record")\n', "        pass\n"),
     "discard does not poison": ("        self._fail()\n        self._finished = True\n\n\ndef encode_record", "        self._finished = True\n\n\ndef encode_record"),
     "blank lines not skipped": ("                if not line.strip():\n                    continue\n", ""),
@@ -147,6 +162,26 @@ PROTOCOL_REASSEMBLER = {
     "reassembler: skip CRC check": (
         '        if checksum(payload) != envelope.checksum.lower():\n            raise ValueError(f"checksum mismatch on chunk {sequence}")\n',
         "",
+    ),
+}
+PROTOCOL_KEY = {
+    "key: remove 16-byte minimum": (
+        "or len(authentication_key) < MIN_AUTHENTICATION_KEY_BYTES",
+        "or not authentication_key",
+    ),
+}
+NDJSON_STRICT = {
+    "ndjson: accept duplicate object names": (
+        '        if key in result:\n            raise NDJSONError(f"duplicate JSON object name: {key!r}")\n',
+        '        if False:\n            raise NDJSONError(f"duplicate JSON object name: {key!r}")\n',
+    ),
+    "ndjson: accept nonstandard constants": (
+        "                    parse_constant=_reject_nonstandard_json_constant,\n",
+        "",
+    ),
+    "ndjson: leak RecursionError": (
+        '        except RecursionError as error:\n            self._fail()\n            raise NDJSONError("JSON nesting exceeds decoder capacity") from error\n',
+        '        except RecursionError:\n            self._fail()\n            raise\n',
     ),
 }
 
@@ -219,13 +254,17 @@ def run_module(
                 survived.append(label)
         finally:
             shutil.rmtree(work, ignore_errors=True)
-    total = len(mutants) - len(skipped)
-    print(f"{name}: killed {len(killed)}/{total}")
+    total = len(mutants)
+    applicable = total - len(skipped)
+    print(
+        f"{name}: applicable={applicable}/{total}, killed={len(killed)}, "
+        f"survived={len(survived)}, not_applicable={len(skipped)}"
+    )
     for label in survived:
         print(f"   SURVIVED: {label}")
     for label in skipped:
         print(f"   NOT APPLICABLE (source changed): {label}")
-    return len(survived)
+    return len(survived) + len(skipped)
 
 
 def main() -> None:
@@ -265,8 +304,8 @@ def main() -> None:
         print("Baseline tests fail; fix them before mutation testing.\n" + base.stdout[-800:])
         raise SystemExit(2)
 
-    survivors = run_module(args.impl, args.tests, "authority_policy.py", AUTH)
-    survivors += run_module(args.impl, args.tests, "ndjson_stream.py", NDJSON)
+    failures = run_module(args.impl, args.tests, "authority_policy.py", AUTH)
+    failures += run_module(args.impl, args.tests, "ndjson_stream.py", NDJSON)
     protocol_dir = args.impl / "adaptive-response-filter"
     protocol_tests = tuple(
         Path(name)
@@ -289,7 +328,7 @@ def main() -> None:
             "envelope.py",
         )
     )
-    survivors += run_module(
+    failures += run_module(
         args.impl,
         args.tests,
         "envelope.py",
@@ -298,7 +337,7 @@ def main() -> None:
         extra_tests=protocol_tests,
         support_files=protocol_support,
     )
-    survivors += run_module(
+    failures += run_module(
         args.impl,
         args.tests,
         "policy.py",
@@ -307,7 +346,7 @@ def main() -> None:
         extra_tests=protocol_tests,
         support_files=protocol_support,
     )
-    survivors += run_module(
+    failures += run_module(
         args.impl,
         args.tests,
         "reassembler.py",
@@ -316,7 +355,22 @@ def main() -> None:
         extra_tests=protocol_tests,
         support_files=protocol_support,
     )
-    survivors += run_module(
+    failures += run_module(
+        args.impl,
+        args.tests,
+        "envelope.py",
+        PROTOCOL_KEY,
+        source_dir=protocol_dir,
+        extra_tests=protocol_tests,
+        support_files=protocol_support,
+    )
+    failures += run_module(
+        args.impl,
+        args.tests,
+        "ndjson_stream.py",
+        NDJSON_STRICT,
+    )
+    failures += run_module(
         args.impl,
         args.tests,
         "approval_workflow.py",
@@ -330,7 +384,7 @@ def main() -> None:
             else ()
         ),
     )
-    raise SystemExit(1 if survivors else 0)
+    raise SystemExit(1 if failures else 0)
 
 
 if __name__ == "__main__":
