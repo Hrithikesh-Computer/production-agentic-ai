@@ -23,14 +23,26 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install ".[dev]"
+          python -m pip install -r requirements-dev.lock
 
       - name: Lint with Ruff
         run: python -m ruff check .
 
-      - name: Run tests
-        run: python -m pytest -q
+      - name: Run tests with protocol coverage gate
+        run: >-
+          python -m pytest -q
+          --cov=envelope
+          --cov=reassembler
+          --cov=ndjson_stream
+          --cov-branch
+          --cov-report=term-missing
+          --cov-fail-under=90
+
+      - name: Run mutation checks
+        run: python mutation_check.py
+
+      - name: Audit locked dependencies
+        run: python -m pip_audit -r requirements-dev.lock
 
       - name: Check Markdown links
         run: python scripts/check_markdown_links.py
