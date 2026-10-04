@@ -60,6 +60,29 @@ def test_manager_keeps_two_in_flight_messages_separate():
     assert set(manager.sessions) == {"response-a", "response-b"}
 
 
+def test_manager_preserves_partial_session_after_bad_chunk_and_accepts_retry():
+    manager = ReassemblySessionManager(
+        authentication_key=AUTH_KEY,
+        request_retry=lambda _message_id, _missing: None,
+        request_full_buffer=lambda _message_id: b"fallback",
+    )
+    first = _chunk("response-retry", 0, 2, b"old-")
+    assert manager.add_chunk(first) is None
+
+    bad_final = _chunk("response-retry", 1, 2, b"new").to_dict()
+    bad_final["auth_tag"] = "0" * 64
+    try:
+        manager.add_chunk(bad_final)
+    except ValueError as error:
+        assert "authentication failed" in str(error)
+    else:
+        raise AssertionError("manager accepted a chunk with a bad authentication tag")
+
+    assert set(manager.sessions) == {"response-retry"}
+    assert manager.sessions["response-retry"].reassembler.received == {0: b"old-"}
+    assert manager.add_chunk(_chunk("response-retry", 1, 2, b"new")) == b"old-new"
+
+
 def test_session_rejects_chunk_for_another_message():
     session = ReassemblySession(
         message_id="expected",

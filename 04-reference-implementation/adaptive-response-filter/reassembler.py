@@ -217,6 +217,7 @@ class ReassemblySessionManager:
         if not isinstance(envelope, WireEnvelope):
             envelope = WireEnvelope.from_mapping(envelope)
         session = self.sessions.get(envelope.message_id)
+        created = session is None
         if session is None:
             session = ReassemblySession(
                 message_id=envelope.message_id,
@@ -227,4 +228,9 @@ class ReassemblySessionManager:
                 clock=self.clock,
             )
             self.sessions[envelope.message_id] = session
-        return session.add_chunk(envelope)
+        try:
+            return session.add_chunk(envelope)
+        except Exception:
+            if created:
+                self.sessions.pop(envelope.message_id, None)
+            raise
