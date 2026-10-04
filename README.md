@@ -75,7 +75,7 @@ This is a proposed design plus local simulation, not a deployed CRM product. Use
 
 1. Read the [solution overview](./architecture/00-solution-overview.md) for the problem, scope, intended outcome, and what is not implemented.
 2. Open the [C4 container diagram](./architecture/diagrams/c4-containers.mmd) and follow the [context and containers notes](./architecture/01-context-and-containers.md). The identity provider, CRM, model provider, approval queue, authority gateway, and audit store are proposed components.
-3. Read the [three ADRs](./architecture/02-decisions/README.md) and the [authority options analysis](./architecture/03-options-analysis.md) to see alternatives, trade-offs, and provisional choices.
+3. Read the [ADR index](./architecture/02-decisions/README.md) and the [authority options analysis](./architecture/03-options-analysis.md) to see alternatives, trade-offs, and provisional choices.
 4. Scan the [STRIDE threat model](./architecture/04-threat-model.md), especially the flow IDs for model prompt injection, approval replay, and the recheck-before-write boundary.
 5. Run `python prototypes/crm_operational_copilot/approval_workflow.py` and `python -m pytest -q prototypes/crm_operational_copilot/test_approval_workflow.py tests/test_authority_referral.py`. The simulation uses in-memory mock records; 16 workflow test cases cover approval, binding, current requester/reviewer authority, stale records, expiry, and replay, while 7 referral tests cover evaluator, aggregate, session, and ticket behavior.
 
