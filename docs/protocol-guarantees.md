@@ -34,10 +34,18 @@ bounded local replay window, not durable replay protection.
 
 The session manager defaults to at most 1,024 concurrent sessions. Incomplete
 sessions expire 300 seconds after their last successfully accepted chunk;
-expiry is lazy and runs on the next manager intake. Each `Reassembler` accepts
-at most 10,000 chunks and 16,000,000 payload bytes. These limits bound this
-reference implementation's tracked protocol state, not all transient Python
-allocations or process memory.
+expiry is lazy and runs on the next manager intake. Active sessions share a
+total payload-byte cap of 268,435,456 bytes (256 MiB). Each `Reassembler`
+accepts at most 10,000 chunks and 16,000,000 payload bytes.
+
+These limits bound tracked protocol state, not all transient Python allocations
+or process memory. A sender that can authenticate requests and abandons
+incomplete sessions can hold session and byte capacity until the 300-second
+idle TTL; the caps bound that resource use but do not prevent slot blocking.
+Completion joins the received fragments into an output buffer while the stored
+fragments are still retained. For one maximum-size 16,000,000-byte message,
+payload plus joined output can therefore transiently require about 32,000,000
+bytes, excluding Python object and serialization overhead.
 
 ## NDJSON Failure Contract
 
