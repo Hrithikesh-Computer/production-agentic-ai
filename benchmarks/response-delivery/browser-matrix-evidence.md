@@ -105,6 +105,15 @@ For a higher level to repay its extra server CPU through wire-time savings, use 
 | Structured | ~6.1 MB/s | ~2.4 MB/s | ~0.64 MB/s |
 | Text-like | ~5.6 MB/s | ~3.3 MB/s | ~1.6 MB/s |
 
-Below a level's break-even rate, its estimated wire-time savings exceed the paired CPU increment; above it, level 1 has the lower combined server-CPU-plus-wire-time estimate. On this model, level 1 wins at 10 and 50 MB/s for both payload kinds. At 2 MB/s, level 3 wins for both kinds; level 6 is only a narrow win for structured data (and a clearer win for text-like data). Level 9 pays off only at 0.512 MB/s. These are directional synthetic estimates, not production settings.
+Below a level's break-even rate, its estimated wire-time savings exceed the paired CPU increment; above it, level 1 has the lower combined server-CPU-plus-wire-time estimate. The net values (estimated wire time saved minus added paired CPU, in milliseconds) identify the best tested level in each cell:
+
+| Payload | 0.512 MB/s | 2 MB/s | 10 MB/s | 50 MB/s |
+|---|---:|---:|---:|---:|
+| Structured | Level 3 (+30.4) | Level 3 (+5.7) | Level 1 (0) | Level 1 (0) |
+| Text-like | Level 6 (+77.7) | Level 3 (+12.5) | Level 1 (0) | Level 1 (0) |
+
+At 2 MB/s, level 6 is still positive against level 1 for both payloads (+1.3 ms structured, +9.2 ms text-like), but level 3 is better under the measured paired-CPU model. Level 9 is positive against level 1 only at 0.512 MB/s, yet is never the best level: level 3 dominates it for structured data, and level 6 dominates it for text-like data at every tested rate.
+
+The CPU sweep compresses full and framed bodies in each repetition. If the paired CPU is halved to approximate full-body-only cost, level 3 becomes marginally positive at 10 MB/s (+0.3 ms structured and +0.4 ms text-like). At 2 MB/s for text-like data, levels 3 and 6 are effectively tied under that sensitivity (+15.9 and +16.4 ms, respectively). At 50 MB/s, level 1 remains the best choice. Thus the estimated latency value of changing levels at 10 MB/s is under half a millisecond; do not present the conservative level-1 result there as a meaningful latency win. These are directional synthetic estimates, not production settings.
 
 Three limits matter: paired CPU includes compression of both full and framed bodies, so using it against full-body byte savings is conservative; client decompression is excluded; and if precompressed bodies are cached as in this harness, compression CPU is paid outside the request path and this break-even comparison does not apply.
