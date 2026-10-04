@@ -1,0 +1,51 @@
+# Protocol Guarantees and Limits
+
+This document describes the local Python reference protocol. It is not a
+production transport or a substitute for authenticated transport, durable
+state, or application-level request correlation.
+
+## Envelope Authentication
+
+Each envelope's HMAC-SHA256 authenticates `sequence`, `total_chunks`,
+`checksum`, `is_final`, `payload`, `merge_mode`, and `message_id`. The tag is
+computed with the caller-supplied shared key and compared in constant time.
+CRC32 detects accidental corruption; it is not an authentication mechanism.
+The key must be bytes and at least 16 bytes long.
+
+Only these defined envelope fields are included in the canonical HMAC input.
+Unknown mapping fields are ignored by the current decoder and are not
+authenticated. The protocol does not provide confidentiality, key provisioning,
+rotation, or protection from an authorized key holder.
+
+## Message IDs and Replay Window
+
+Producers must never reuse a `message_id` while an earlier message with that ID
+is retained by the receiver. A message ID is authenticated per chunk, but the
+protocol does not sign a full-message digest or length; reusing an ID across
+different in-flight logical messages can therefore combine chunks. The receiver
+rejects late chunks for completed IDs while their tombstones remain.
+
+Completed IDs are kept in a bounded tombstone set for 3,600 seconds, with at
+most 4,096 tombstones. The oldest tombstone is evicted first if the set is full.
+Replay is not defended after the tombstone expires or is evicted. This is a
+bounded local replay window, not durable replay protection.
+
+## State and Payload Bounds
+
+The session manager defaults to at most 1,024 concurrent sessions. Incomplete
+sessions expire 300 seconds after their last successfully accepted chunk;
+expiry is lazy and runs on the next manager intake. Each `Reassembler` accepts
+at most 10,000 chunks and 16,000,000 payload bytes. These limits bound this
+reference implementation's tracked protocol state, not all transient Python
+allocations or process memory.
+
+## NDJSON Failure Contract
+
+The NDJSON decoder accepts UTF-8, newline-delimited JSON objects, with a
+1,048,576-byte maximum record. It rejects non-standard `NaN`/infinity constants,
+duplicate object names, non-object records, invalid UTF-8, excessive parser
+nesting, and an unterminated final record. Any decoding error poisons the
+decoder. Records returned by earlier `feed()` calls cannot be retracted, so the
+caller must discard every record already received for that response and retry
+the whole request. Records parsed earlier in the same failing `feed()` call are
+not returned.
