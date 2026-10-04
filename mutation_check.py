@@ -126,6 +126,29 @@ NDJSON = {
     "ensure_ascii on": ("ensure_ascii=False", "ensure_ascii=True"),
     "no failed-state lock": ('        if self._failed:\n            raise DecoderFailedError("decoder failed; discard the response and retry")\n        if self._finished:\n            raise ValueError("decoder is finished")', '        if self._finished:\n            raise ValueError("decoder is finished")'),
 }
+PROTOCOL_ENVELOPE = {
+    "envelope: drop message_id from HMAC": ('        "message_id": message_id,\n', ""),
+}
+PROTOCOL_POLICY = {
+    "policy: threshold equality uses >": (
+        "return len(payload) >= self.threshold_bytes",
+        "return len(payload) > self.threshold_bytes",
+    ),
+}
+PROTOCOL_REASSEMBLER = {
+    "reassembler: remove conflicting-duplicate rejection": (
+        '            if existing != payload:\n                raise ValueError(f"conflicting duplicate chunk {sequence}")\n',
+        "",
+    ),
+    "reassembler: remove post-completion rejection": (
+        '        if self._completed:\n            raise ValueError(\n                "a Reassembler instance handles one message; create a new instance"\n            )\n\n',
+        "",
+    ),
+    "reassembler: skip CRC check": (
+        '        if checksum(payload) != envelope.checksum.lower():\n            raise ValueError(f"checksum mismatch on chunk {sequence}")\n',
+        "",
+    ),
+}
 
 
 def run_module(
@@ -244,6 +267,55 @@ def main() -> None:
 
     survivors = run_module(args.impl, args.tests, "authority_policy.py", AUTH)
     survivors += run_module(args.impl, args.tests, "ndjson_stream.py", NDJSON)
+    protocol_dir = args.impl / "adaptive-response-filter"
+    protocol_tests = tuple(
+        Path(name)
+        for name in (
+            "test_chunker.py",
+            "test_envelope.py",
+            "test_reassembler.py",
+            "test_reassembly_session.py",
+        )
+    )
+    protocol_support = tuple(
+        Path(name)
+        for name in (
+            "chunker.py",
+            "filter.py",
+            "middleware.py",
+            "metrics.py",
+            "policy.py",
+            "reassembler.py",
+            "envelope.py",
+        )
+    )
+    survivors += run_module(
+        args.impl,
+        args.tests,
+        "envelope.py",
+        PROTOCOL_ENVELOPE,
+        source_dir=protocol_dir,
+        extra_tests=protocol_tests,
+        support_files=protocol_support,
+    )
+    survivors += run_module(
+        args.impl,
+        args.tests,
+        "policy.py",
+        PROTOCOL_POLICY,
+        source_dir=protocol_dir,
+        extra_tests=protocol_tests,
+        support_files=protocol_support,
+    )
+    survivors += run_module(
+        args.impl,
+        args.tests,
+        "reassembler.py",
+        PROTOCOL_REASSEMBLER,
+        source_dir=protocol_dir,
+        extra_tests=protocol_tests,
+        support_files=protocol_support,
+    )
     survivors += run_module(
         args.impl,
         args.tests,
