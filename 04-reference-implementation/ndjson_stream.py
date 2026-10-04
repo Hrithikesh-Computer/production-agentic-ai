@@ -98,6 +98,9 @@ class NDJSONDecoder:
                 if not isinstance(value, dict):
                     raise NDJSONError("NDJSON records must be JSON objects")
                 records.append(value)
+        except RecursionError as error:
+            self._fail()
+            raise NDJSONError("JSON nesting exceeds decoder capacity") from error
         except Exception:
             self._fail()
             raise

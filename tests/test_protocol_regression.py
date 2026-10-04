@@ -193,10 +193,8 @@ def test_deep_nesting_raises_ndjson_error_not_recursion_error():
     decoder = NDJSONDecoder()
     record = b"[" * 100_000 + b"0" + b"]" * 100_000 + b"\n"
 
-    try:
+    with pytest.raises(NDJSONError) as caught:
         decoder.feed(record)
-    except NDJSONError:
-        return
-    except RecursionError as error:
-        pytest.fail(f"leaked RecursionError instead of NDJSONError: {error}")
-    pytest.fail("deeply nested record was accepted")
+
+    assert not isinstance(caught.value, RecursionError)
+    assert decoder.failed
