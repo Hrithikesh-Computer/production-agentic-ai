@@ -151,6 +151,10 @@ PROTOCOL_POLICY = {
     ),
 }
 PROTOCOL_REASSEMBLER = {
+    "reassembler: remove message_id consistency check": (
+        '        if self.message_id is not None and envelope.message_id != self.message_id:\n            raise ValueError("message_id cannot change during reassembly")\n',
+        "",
+    ),
     "reassembler: remove conflicting-duplicate rejection": (
         '            if existing != payload:\n                raise ValueError(f"conflicting duplicate chunk {sequence}")\n',
         "",
