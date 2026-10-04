@@ -16,8 +16,8 @@ from envelope import (
     WireEnvelope,
     checksum,
 )
-from metrics import ReceiverOutcome, emit_receiver_outcome
 from policy import DeliveryPolicy
+from receiver_outcomes import ReceiverOutcome, emit_receiver_outcome
 
 DEFAULT_MAX_CHUNKS = MAX_ENVELOPE_CHUNKS
 DEFAULT_MAX_PAYLOAD_BYTES = MAX_ENVELOPE_PAYLOAD_BYTES

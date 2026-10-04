@@ -4,7 +4,7 @@ import json
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from metrics import ReceiverOutcome, emit_receiver_outcome
+from receiver_outcomes import ReceiverOutcome, emit_receiver_outcome
 
 DEFAULT_MAX_RECORD_BYTES = 1_048_576
 

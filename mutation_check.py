@@ -114,7 +114,10 @@ WORKFLOW = {
     ),
 }
 NDJSON = {
-    "no poison on error": ("        except Exception:\n            self._fail()\n            raise", "        except Exception:\n            raise"),
+    "no poison on error": (
+        "        except Exception:\n            self._poison()\n            raise",
+        "        except Exception:\n            raise",
+    ),
     "feed ignores failed flag": ('        if self._failed:\n            raise DecoderFailedError("decoder failed; discard the response and retry")\n        if self._finished:\n            raise ValueError("decoder is finished")', '        if self._finished:\n            raise ValueError("decoder is finished")'),
     "finish ignores failed flag": ('        if self._failed:\n            raise DecoderFailedError("decoder failed; discard the response and retry")\n        if self._finished:\n            return', "        if self._finished:\n            return"),
     "no max when no newline": (
@@ -135,7 +138,10 @@ NDJSON = {
         '                self._pending.extend(fragment)\n                line = bytes(self._pending)',
         '                self._pending = bytearray(fragment)\n                line = bytes(self._pending)',
     ),
-    "finish ignores partial": ('        if self._pending:\n            self._fail()\n            raise IncompleteRecordError("stream ended inside an NDJSON record")\n', "        pass\n"),
+    "finish ignores partial": (
+        '        if self._pending:\n            self._poison()\n            raise IncompleteRecordError("stream ended inside an NDJSON record")\n',
+        '        if self._pending:\n            raise IncompleteRecordError("stream ended inside an NDJSON record")\n',
+    ),
     "discard does not poison": ("        self._fail()\n        self._finished = True\n\n\ndef encode_record", "        self._finished = True\n\n\ndef encode_record"),
     "blank lines not skipped": ("                if not line.strip():\n                    continue\n", ""),
     "ensure_ascii on": ("ensure_ascii=False", "ensure_ascii=True"),
@@ -164,7 +170,7 @@ PROTOCOL_REASSEMBLER = {
         "",
     ),
     "reassembler: skip CRC check": (
-        '        if checksum(payload) != envelope.checksum.lower():\n            raise ValueError(f"checksum mismatch on chunk {sequence}")\n',
+        '        if checksum(payload) != envelope.checksum.lower():\n            emit_receiver_outcome(ReceiverOutcome.ENVELOPE_INTEGRITY_REJECTED)\n            raise ValueError(f"checksum mismatch on chunk {sequence}")\n',
         "",
     ),
     "manager: skip aggregate byte cap": (
@@ -192,8 +198,8 @@ NDJSON_STRICT = {
         "",
     ),
     "ndjson: leak RecursionError": (
-        '        except RecursionError as error:\n            self._fail()\n            raise NDJSONError("JSON nesting exceeds decoder capacity") from error\n',
-        '        except RecursionError:\n            self._fail()\n            raise\n',
+        '        except RecursionError as error:\n            self._poison()\n            raise NDJSONError("JSON nesting exceeds decoder capacity") from error\n',
+        '        except RecursionError:\n            self._poison()\n            raise\n',
     ),
 }
 
@@ -222,7 +228,11 @@ def run_module(
         try:
             shutil.copytree(tests, work / "tests")
             (work / "impl").mkdir()
-            for sibling in ("authority_policy.py", "ndjson_stream.py"):
+            for sibling in (
+                "authority_policy.py",
+                "ndjson_stream.py",
+                "receiver_outcomes.py",
+            ):
                 if (impl / sibling).exists():
                     shutil.copy(impl / sibling, work / "impl" / sibling)
             test_paths = [str(work / "tests")]
