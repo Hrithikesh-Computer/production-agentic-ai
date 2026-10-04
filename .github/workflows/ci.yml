@@ -38,6 +38,12 @@ jobs:
           --cov-report=term-missing
           --cov-fail-under=90
 
+      - name: Generate coverage JSON
+        run: python -m coverage json -o coverage.json
+
+      - name: Check per-file protocol coverage
+        run: python scripts/check_coverage_per_file.py coverage.json
+
       - name: Run mutation checks
         run: python mutation_check.py
 
