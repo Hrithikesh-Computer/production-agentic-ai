@@ -89,3 +89,7 @@ pip-selfcheck.json
 _site/
 site/
 archive/
+docs/
+!docs/
+docs/*
+!docs/repo-evaluation-v2.md
