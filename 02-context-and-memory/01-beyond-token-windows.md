@@ -5,8 +5,8 @@
 **Reading time:** ~15 minutes
 **Difficulty:** Advanced
 **Category:** Context Engineering
-**Status:** Research article.
-**Evidence boundary:** This documents a design and lifecycle model; the repository does not include a production context manager, and measured latency or cost claims remain illustrative unless backed by a concrete implementation and benchmark.
+**Status:** Research note / hypothesis; no local benchmark or runnable context manager is present.
+**Evidence boundary:** The repository has no representative multi-turn context workload or production context manager. The current evidence is limited to article-level reasoning and the repository's explicit scope guard; it does not measure latency, cost, retrieval, caching, or user-observed quality.
 
 ## Decision Summary
 
@@ -117,6 +117,33 @@ flowchart LR
     O --> I
 ```
 
+### Example interaction sequence
+
+This sequence is conceptual; the repository does not implement a context manager.
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant A as Agent
+    participant C as Context Manager
+    participant M as Memory Store
+    participant T as Tool
+
+    U->>A: Task
+    A->>C: Acquire request + state
+    C->>C: Classify and score context
+    C->>M: Retrieve relevant memory
+    C->>T: Request active tool output
+    T-->>C: Tool result
+    C->>C: Compress / externalize / stub as needed
+    C->>A: Active context bundle
+    A->>A: Reason and act
+    A->>C: Observe decisions and constraints
+    C->>M: Persist non-derivable state
+    C-->>A: Updated state for next step
+    A-->>U: Response
+```
+
 That lifecycle is intentionally different from “just keep the last N turns.” It creates several required engineering decisions.
 
 - Acquisition: what information enters the system and from what source?
@@ -168,7 +195,7 @@ The key insight is that most of these failures do not look like model failures. 
 
 This repository does not yet include a full production-ready context lifecycle implementation; that is a separate engineering artifact from the article itself. The closest concrete examples in this repo are the architectural patterns and local implementation boundaries, not a full context manager.
 
-The reference pattern for this article is therefore architectural rather than a single class: keep explicit state, separate stable and dynamic context, and make retention policy visible instead of implicit.
+The reference pattern for this article is architectural rather than a single class: keep explicit state, separate stable and dynamic context, and make retention policy visible instead of implicit. No context-lifecycle implementation or benchmark is included in this repository.
 
 ## Experiment
 
@@ -205,7 +232,7 @@ The experimental point is not whether a strategy reduces tokens; it is whether i
 
 ## Benchmark
 
-The benchmark should not pretend to produce a single universal number. It should instead produce a defensible comparison under controlled conditions. A useful benchmark design would report:
+No context-lifecycle benchmark or characterization test remains in the repository. The former hand-authored policy score was removed because its threshold and keyword heuristic were tailored to the fixtures and did not test repeated decisions. A future workload benchmark should report:
 
 - total active context tokens
 - retrieved context tokens
@@ -253,39 +280,9 @@ This decision is most valuable in long-running, multi-step, tool-using agents wh
 - What is the smallest active context bundle that still preserves required task reasoning?
 - What metrics prove the system is improving context quality rather than merely reducing prompt size?
 
-## Related Topics
+## Further Reading
 
-- Ellis, D. and others. Practical work on memory and retrieval systems for long-lived agents. <!-- TODO: verify source exists -->
 - OpenAI and Anthropic documentation on tool-use, memory, and state management patterns in production agents.
 - Research on long-context evaluation, summarization failure modes, and retrieval quality.
 - Work on prompt caching and prefix stability in large language model serving systems.
 - Production engineering literature on observability, incident analysis, and state management under partial failure.
-
-The main takeaway is simple: context engineering is not a matter of squeezing more tokens into a model. It is the discipline of deciding what information survives, how it survives, and whether the system can recover it when the next decision depends on it.
-
----
-
-## Additional Diagram
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant A as Agent
-    participant C as Context Manager
-    participant M as Memory Store
-    participant T as Tool
-
-    U->>A: Task
-    A->>C: Acquire request + state
-    C->>C: Classify and score context
-    C->>M: Retrieve relevant memory
-    C->>T: Request active tool output
-    T-->>C: Tool result
-    C->>C: Compress / externalize / stub as needed
-    C->>A: Active context bundle
-    A->>A: Reason and act
-    A->>C: Observe decisions and constraints
-    C->>M: Persist non-derivable state
-    C-->>A: Updated state for next step
-    A-->>U: Response
-```

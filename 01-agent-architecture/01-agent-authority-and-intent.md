@@ -5,12 +5,12 @@
 **Reading time:** ~16 minutes
 **Difficulty:** Advanced
 **Category:** Agent Architecture
-**Status:** Research article.
-**Evidence boundary:** This is reasoned architecture analysis, not a repository-implemented security runtime; claims about deployed control systems remain hypotheses unless supported by direct runtime evidence.
+**Status:** Research note / hypothesis; no verified enforcement mechanism is included.
+**Evidence boundary:** This is architecture analysis, not a repository-implemented security runtime. The semantic-alignment layer has no defined algorithm, metric, or enforcement point here; claims about deployed control systems remain hypotheses without direct runtime evidence.
 
 ## Decision Summary
 
-Production agent security is not failing because authorization mechanisms are absent; it is failing because the system must answer a much harder question than “who is this caller?” or “what action is allowed?”
+This research note hypothesizes that identity and permission checks may be insufficient for some stateful, delegated agent workflows. It proposes separating identity, scope, provenance, runtime validity, and intent review as design concerns. The repository does not establish that this model improves production security or provide a mechanism for deciding semantic alignment.
 
 ## Problem
 
@@ -25,7 +25,7 @@ A conventional authorization stack can usually answer questions like:
 
 That is necessary, but it is not sufficient. In production agent systems, the harder question is usually not whether an action is technically permitted, but whether it is legitimate under the intended operational context.
 
-This gap appears everywhere in agentic architectures. Identity systems can prove the caller's credentials. Policy languages can encode permission boundaries. Model- or tool-level controls can constrain system behavior. But autonomous execution still creates failures where a step is permitted, yet the overall decision is semantically wrong.
+One concern for agentic architectures is that a step can be permitted while its overall purpose is mistaken. This note treats that as a hypothesis to investigate, not a failure rate demonstrated by repository evidence.
 
 This is the “identity and intent” paradox. Security controls are strong on identity and access, but weak on semantic alignment and operational validity. The resulting issue is not merely theoretical: it shows up as unexpected tool use, over-broad delegation, stale runtime decisions, and policy bypasses that look valid in isolation.
 
@@ -33,7 +33,7 @@ This is the “identity and intent” paradox. Security controls are strong on i
 
 A production agent is not a static principal in the conventional sense. It is a system with state, memory, tool call chains, self-modified behavior, and often partial autonomy. At runtime, the system may have an identity, a valid token, and an allowed tool list while still making the wrong decision because the context it is operating under has drifted, conflicting evidence has accumulated, or reasoning has diverged from user intent.
 
-The literature and architectural frameworks we reviewed point to a repeated pattern:
+This note organizes several concerns that require separate evidence:
 
 - identity is solvable at the cryptographic and protocol layer
 - permission boundaries are solvable at the policy layer
@@ -59,6 +59,8 @@ This turns the problem from “Is this action authorized?” into a more precise
 
 The important point is that these are different questions and should not be collapsed into a single check. If they are collapsed, the system appears secure while still exhibiting dangerous behavior.
 
+Semantic alignment is a requirement stated by this article, not an implemented decision procedure. Until its inputs, evaluation method, and enforcement point are defined, it cannot support an authorization verdict.
+
 ## Background
 
 The literature on agent security has advanced in fragmented ways. Some work focuses on cryptographic identity, some on delegated access, some on protocol-level trust, and some on reasoning or intent alignment. The clearest pattern is this:
@@ -69,7 +71,7 @@ The literature on agent security has advanced in fragmented ways. Some work focu
 4. Multi-hop execution introduces information synthesis problems that no single-hop authorization layer can solve.
 5. Dynamic runtime conditions create contradictions between static permission declarations and real-world execution states.
 
-This is exactly where the system begins to fail in production. A principal can be validly identified, and the action can be within an authorized scope, while the real decision still rests on dynamic state, incomplete provenance, or semantic drift.
+These concerns motivate the proposed model, but this repository does not establish how often they cause production failures.
 
 A few concrete gaps are repeatedly observed across frameworks:
 
@@ -178,13 +180,11 @@ The central lesson is that failure is rarely caused by one missing permission ch
 
 ## Reference Implementation
 
-This repository does not yet include a full formal production implementation for agent authority semantics; the closest existing work here is the architecture-focused design for context and authority lifecycle management.
-
-The nearest conceptual parallel in this repository is the context-lifecycle thinking already developed in the context-engineering articles: treat authority as a managed state, not a single prompt or a single token.
+The repository includes a small [authority policy evaluator](../04-reference-implementation/authority_policy.py) and [behavior tests](../tests/test_authority_policy.py). They exercise identity/action matching, grant time bounds, revocation, priority, fail-closed behavior, and deny-on-tie. This bounded example is not an agent runtime, production authorization system, delegation model, or semantic-alignment mechanism.
 
 ## Experiment
 
-A meaningful experiment should compare different authority architectures under the same controlled conditions rather than simply asserting that one model exists. The subject of study is not raw cryptographic identity; it is the ability to make an authority decision that remains correct under evolution, uncertainty, and delegation.
+No authority experiment has been run here. The following is a proposed experiment, not a result. It would compare architectures under controlled conditions; the subject is whether an authority decision remains correct under evolution, uncertainty, and delegation.
 
 A minimal experimental design would include the following tasks:
 
@@ -219,7 +219,7 @@ The real question is not whether a model can “authenticate” an action. It is
 
 ## Benchmark
 
-The benchmark should not pretend to produce one universal score. It should instead produce a structured comparison across the systems above under the same deployment assumptions.
+No authority benchmark is implemented. A future benchmark should avoid a universal score and instead compare the systems above under explicit, shared deployment assumptions.
 
 A suitable benchmark would report:
 
@@ -238,7 +238,7 @@ This matters because a system can appear secure in one metric while failing badl
 
 ## Observations
 
-In this article's reading, existing work tends to resolve fragments of the problem without resolving the whole. Identity is well approximated. Permissions are well specified. Provenance and dynamic runtime validity are still harder to model reliably in practice.
+This article's framing separates identity, permissions, provenance, and runtime validity. It does not evaluate how well current systems solve those concerns.
 
 The strongest pattern is that every solved fragment depends on the architecture deciding what the system is allowed to know and when. Once authority becomes dynamic and autonomous, static policy layers alone are not enough.
 
@@ -253,11 +253,9 @@ A few patterns emerge clearly:
 
 ## Decision
 
-The architecture decision is to treat agent authority as a layered system rather than a single permission gate. This means separating identity, scope, delegation provenance, structural derivability, runtime validity, semantic alignment, and policy decision under uncertainty.
+No production architecture decision is justified by the available evidence. The working hypothesis is to evaluate authority as separate concerns: identity, scope, delegation provenance, structural derivability, runtime validity, semantic alignment, and decision policy under uncertainty.
 
-This is the right design for production multi-agent systems because the actual failure modes are not just permission failures; they are lifecycle, provenance, and intent failures. A system that collapses all of those into one check will look secure in tests but fail in the field.
-
-This approach is especially valuable in workflows with delegated authority, sub-agents, retrieval and memory updates, and multi-hop execution. It is less necessary for purely static API access paths with no autonomous decision-making layer.
+Whether separating these concerns improves outcomes in multi-agent workflows remains to be tested. The model may add little value to static API access paths with no autonomous decision-making layer; that boundary is also a hypothesis.
 
 ## Interview Questions
 
@@ -272,14 +270,9 @@ This approach is especially valuable in workflows with delegated authority, sub-
 - How are protocol-layer and browser-layer execution paths handled differently from API paths?
 - What is the human review burden under realistic operational load?
 
-## Related Topics
+## Further Reading
 
-- SentinelAgent and the adversarial intent paraphrasing literature on intent verification and semantic mismatch. <!-- TODO: verify source exists -->
-- Agent Authority Conformance System and formal layered models for structural derivability, priority, and FDE consequence. <!-- TODO: verify source exists -->
-- Authorization Propagation work on delegation, revocation, and multi-hop authority composition. <!-- TODO: verify source exists -->
 - OpenID and agent delegation standards discussing scope attenuation and cross-domain federation.
-- A2ABreak and MCP security analysis of protocol and transport-layer vulnerabilities. <!-- TODO: verify source exists -->
-- Agentic Zero Trust discussions of emergent offensive reasoning and policy-bound execution. <!-- TODO: verify source exists -->
 - Work on dynamic identity drift, mutable principals, and self-modifying agents.
 - Research on consent fatigue, decision burden, and approval economics in multi-agent systems.
 

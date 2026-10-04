@@ -4,46 +4,63 @@ Engineering analysis and reference implementations for production agentic AI rel
 
 ## What this is
 
-This is a focused research and reference repository on production agentic AI reliability. It centers on three themes:
+This is a focused research and reference repository on production agentic AI reliability. It centers on two primary themes, with failure modes treated as a lens across both:
 
-- Response-delivery bottlenecks and adaptive chunking
-- Context lifecycle management
-- Authority and intent semantics beyond simple identity and authorization
+- Agent architecture, including authority and intent as research hypotheses
+- Context engineering and lifecycle management
 
-It contains reasoned architecture analysis, explicit evidence boundaries, and a narrow, tested local reference implementation: `adaptive-response-filter`.
+Response delivery is a production failure case used to examine reliability trade-offs, not a third standalone theme. The repository contains explicit evidence boundaries and two narrow, tested local reference slices: the `adaptive-response-filter` protocol example and the bounded authority evaluator.
 
 ## What this is not
 
 - Not a production platform, framework, or agent runtime.
 - Not a live CRM, EMR, governance, or multi-agent system.
 - Not a collection of enterprise design sketches; those are retained under `archive/`.
-- Does not claim production measurements or deployed results for illustrative article numbers.
+- Does not claim production measurements or deployed results for the research notes.
 
 ## Current Implementation Boundary
 
-The implemented slice provides delivery policy, UTF-8-safe chunking, validated `WireEnvelope` values with CRC32 and HMAC-SHA256, bounded reassembly, message-scoped timeout/retry/fallback behavior, tests, CI, linting, type checking, and a demo. Session callbacks are local protocol behavior; they are not connected to a production transport.
+The implemented slices include a local authenticated-envelope/reassembly protocol example, a bounded authority evaluator with allow/deny/refer outcomes, an incremental NDJSON decoder, a browser harness for an NDJSON-over-HTTP candidate, and a deterministic CRM approval workflow simulation. The CRM workflow uses in-memory mock records and caller-supplied identities; it is not a live CRM, identity provider, model integration, durable approval service, or production runtime.
 
-There is no FastAPI server, LangGraph runtime, LLM client, database, Redis, PostgreSQL, OpenTelemetry runtime, Docker deployment, browser/client reassembler, or production transport in this repository.
+The active runtime and dependency boundary is documented once in [ROADMAP.md](./ROADMAP.md#systemic-dependencies--future-research-context) and [04-reference-implementation/README.md](./04-reference-implementation/README.md).
 
 ## Repository Capability Statement
 
 | Category | Status in this repo | Evidence |
 |---|---|---|
 | Executable implementation | Local Python reference slice for adaptive response delivery | Tests, demo, and code under [04-reference-implementation/adaptive-response-filter](04-reference-implementation/adaptive-response-filter) |
+| CRM approval workflow simulation | In-memory proposal, human-review, authority recheck, mock update, and JSONL audit sequence | [approval_workflow.py](prototypes/crm_operational_copilot/approval_workflow.py) and focused tests; no live CRM, authenticated identity, or durable state |
 | Research articles | Documented engineering analysis and trade-off discussions | Markdown articles and diagrams in this repository |
-| Conceptual architecture | Authority/intent framing and the canonical ingestion architecture | Design-only material; not backed by a matching runtime in this repo |
-| External / absent | EMR, Spark, PostgreSQL/RDS pipelines, production deployments, and cloud service stacks referenced in examples | Not present in the checked-in repository; not measured here |
+| Research hypotheses | Context lifecycle and authority/intent analyses | No context-lifecycle benchmark; a small time-bounded authority policy evaluator exists but does not implement semantic alignment |
+| External / absent | EMR, Spark, PostgreSQL/RDS pipelines, production deployments, and cloud service stacks referenced in archived examples | Not present in the checked-in repository; not measured here |
 
 ## Start Here
 
-- [03-production-lessons/01-adaptive-response-delivery.md](./03-production-lessons/01-adaptive-response-delivery.md) — response-delivery bottlenecks and the local implementation boundary
-- [02-context-and-memory/01-beyond-token-windows.md](./02-context-and-memory/01-beyond-token-windows.md) — context lifecycle management
-- [01-agent-architecture/01-agent-authority-and-intent.md](./01-agent-architecture/01-agent-authority-and-intent.md) — authority and intent semantics
+- [03-production-lessons/01-adaptive-response-delivery.md](./03-production-lessons/01-adaptive-response-delivery.md) — delivery hypothesis and the local implementation boundary
+- [02-context-and-memory/01-beyond-token-windows.md](./02-context-and-memory/01-beyond-token-windows.md) — lifecycle hypothesis; no local implementation or benchmark
+- [01-agent-architecture/01-agent-authority-and-intent.md](./01-agent-architecture/01-agent-authority-and-intent.md) — authority and intent research note
 - [04-reference-implementation/](./04-reference-implementation/) — tested `adaptive-response-filter` reference slice
+- [04-reference-implementation/authority_policy.py](./04-reference-implementation/authority_policy.py) — bounded time-window and priority evaluator
+- [04-reference-implementation/ndjson_stream.py](./04-reference-implementation/ndjson_stream.py) — bounded incremental NDJSON object decoder
+- [architecture/](./architecture/README.md) — proposed CRM-with-human-approval architecture and its evidence boundaries
+- [prototypes/crm_operational_copilot/approval_workflow.py](./prototypes/crm_operational_copilot/approval_workflow.py) — local in-memory approval workflow simulation; no live CRM, identity provider, or model
+- [tests/test_authority_referral.py](./tests/test_authority_referral.py) and [prototypes/crm_operational_copilot/test_approval_workflow.py](./prototypes/crm_operational_copilot/test_approval_workflow.py) — referral and workflow behavior tests
 
-The [EMR-to-PostgreSQL architecture analysis](./01-agent-architecture/02-emr-to-postgresql-ingestion-architecture.md) remains available as a separate conceptual article; it is not one of the three flagship themes.
+The out-of-scope [EMR-to-PostgreSQL architecture analysis](./archive/design-sketches-2026/02-emr-to-postgresql-ingestion-architecture.md) is retained in the design archive.
 
 Historical design sketches, evaluations, and dated review records are retained under [archive/](./archive/) and are not current project guidance.
+
+## How to Review This in 30 Minutes
+
+This is a proposed design plus local simulation, not a deployed CRM product. Use this path to inspect the design and verify one safety control:
+
+1. Read the [solution overview](./architecture/00-solution-overview.md) for the problem, scope, intended outcome, and what is not implemented.
+2. Open the [C4 container diagram](./architecture/diagrams/c4-containers.mmd) and follow the [context and containers notes](./architecture/01-context-and-containers.md). The identity provider, CRM, model provider, approval queue, authority gateway, and audit store are proposed components.
+3. Read the [three ADRs](./architecture/02-decisions/README.md) and the [authority options analysis](./architecture/03-options-analysis.md) to see alternatives, trade-offs, and provisional choices.
+4. Scan the [STRIDE threat model](./architecture/04-threat-model.md), especially the flow IDs for model prompt injection, approval replay, and the recheck-before-write boundary.
+5. Run `python prototypes/crm_operational_copilot/approval_workflow.py` and `python -m pytest -q prototypes/crm_operational_copilot/test_approval_workflow.py tests/test_authority_referral.py`. The simulation uses in-memory mock records; 16 workflow test cases cover approval, binding, current requester/reviewer authority, stale records, expiry, and replay, while 7 referral tests cover evaluator, aggregate, session, and ticket behavior.
+
+For deeper discovery, see the [NFR and sizing worksheet](./architecture/05-nfr-and-sizing.md), [AWS deployment candidate](./architecture/06-deployment-views.md), [cost model](./architecture/07-cost-model.md), and [customer questionnaire](./architecture/09-discovery-questionnaire.md). Their assumptions and numbers are provisional, not requirements or quotations.
 
 ## Repository structure
 
@@ -52,6 +69,12 @@ Historical design sketches, evaluations, and dated review records are retained u
 - [CONTRIBUTING.md](./CONTRIBUTING.md) — contribution process
 - [03-production-lessons/](./03-production-lessons/) — production investigations and engineering case studies
 - [04-reference-implementation/](./04-reference-implementation/) — code that supports the articles
+- [benchmarks/](./benchmarks/) — bounded local experiments and their evidence limits
+- [prototypes/](./prototypes/) — explicitly scoped mock prototypes
+- [diagrams/](./diagrams/) — Mermaid source diagrams
+- [prompts/](./prompts/) — reusable research and review prompts
+- [templates/](./templates/) — article and engineering templates
+- [tests/](./tests/) — behavior tests for the bounded authority evaluator
 - [archive/](./archive/) — historical design sketches, internal evaluations, and review artifacts
 
 ## Quick Start
@@ -67,15 +90,29 @@ python -m pytest -q
 python -m ruff check .
 
 # Run type checks
-python -m mypy 04-reference-implementation/adaptive-response-filter
+python -m mypy 04-reference-implementation/adaptive-response-filter 04-reference-implementation/authority_policy.py tests/test_authority_policy.py
+
+# Run the authority policy evaluator tests
+python -m pytest -q tests/test_authority_policy.py
+
+# Run the local approval workflow simulation and focused tests
+python prototypes/crm_operational_copilot/approval_workflow.py
+python -m pytest -q prototypes/crm_operational_copilot/test_approval_workflow.py
+
+# Run referral outcome tests
+python -m pytest -q tests/test_authority_referral.py
+
+# Run the NDJSON stream decoder tests
+python -m pytest -q tests/test_ndjson_stream.py tests/test_ndjson_guards.py
 
 # Run the reference demo
 python 04-reference-implementation/adaptive-response-filter/demo.py
 
 # Run the local evidence benchmarks
 python benchmarks/response-delivery/benchmark.py
-python benchmarks/context-lifecycle/benchmark.py
-python -m pytest benchmarks/authority-conformance/test_authority_conformance.py -q
+
+# Run the local browser delivery experiment
+python benchmarks/response-delivery/browser_benchmark.py
 ```
 
 ## Evidence posture and benchmark layer
@@ -88,8 +125,8 @@ The repository's strongest local evidence is currently:
 
 - the local adaptive response-delivery implementation and tests under [04-reference-implementation/adaptive-response-filter](./04-reference-implementation/adaptive-response-filter)
 - the response-delivery benchmark under [benchmarks/response-delivery](./benchmarks/response-delivery)
-- the context-lifecycle benchmark under [benchmarks/context-lifecycle](./benchmarks/context-lifecycle)
-- the authority conformance suite under [benchmarks/authority-conformance](./benchmarks/authority-conformance)
+- the bounded authority policy evaluator and tests under [04-reference-implementation/authority_policy.py](./04-reference-implementation/authority_policy.py) and [tests/test_authority_policy.py](./tests/test_authority_policy.py)
+- the incremental NDJSON decoder and guards under [04-reference-implementation/ndjson_stream.py](./04-reference-implementation/ndjson_stream.py) and [tests/test_ndjson_stream.py](./tests/test_ndjson_stream.py)
 
 These artifacts are intentionally narrow and reproducible. They are not presented as production telemetry, production incident data, or deployed-system benchmarks.
 
@@ -97,8 +134,9 @@ The repository's evidence model is:
 
 - implemented and tested locally: real code + tests + CI
 - conceptual and architecture-level: reasoning and design intent
-- benchmarked locally under controlled conditions: specific benchmark suites in this repository
-- future work / not yet evidenced: production deployment, browser runtime, or fleet-scale data
+- measured locally under controlled conditions: response-delivery implementation overhead and the paced standalone-browser harness
+- no context-lifecycle behavior is currently implemented or tested
+- future work / not yet evidenced: production deployment, deployed browser client, or fleet-scale data
 
 ## Repository Packaging and Dependency Reality
 

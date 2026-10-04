@@ -4,20 +4,22 @@ This document maps the repository's major claims to the implementation, tests, b
 
 ## Evidence model
 
-Each major claim in the repository falls into one of four categories:
+Each claim is categorized as one of the following:
 
-- implemented and tested
-- conceptual and architecture-level
-- benchmarked locally under controlled conditions
+- measured locally under controlled conditions
 - missing evidence / future research
 
 ## Claim map
 
 | Claim / article area | Implementation | Tests / benchmark | What is proven | Remaining limits |
 |---|---|---|---|---|
-| Adaptive response delivery is a valid production bottleneck concept | `04-reference-implementation/adaptive-response-filter` | `benchmarks/response-delivery/benchmark.py` | The local one-message delivery policy and reassembly logic behave correctly under controlled payload sizes | Not a deployed browser or production service benchmark |
-| Context lifecycle matters as a design problem | conceptual architecture and local policy logic | `benchmarks/context-lifecycle/benchmark.py` | Synthetic retention policies can be compared under fixed conditions | No production memory workload evidence |
-| Authority / intent require more than identity and permissions | conceptual authority model | `benchmarks/authority-conformance/test_authority_conformance.py` | The local reasoning model enforces expected outcomes for a small set of scenarios | Not a full runtime authorization or security system |
+| Adaptive response-delivery implementation overhead | `04-reference-implementation/adaptive-response-filter` | [`benchmark.py`](benchmarks/response-delivery/benchmark.py) and local tests | Matched payloads are passed through both local policies; chunked envelopes are authenticated and reassembled in reverse arrival order | Local implementation timings only; not end-to-end delivery measurements |
+| Framed HTTP first-visible delivery under paced synthetic workloads | [`browser_benchmark.py`](benchmarks/response-delivery/browser_benchmark.py) | [`browser_results.json`](benchmarks/response-delivery/browser_results.json) | Standalone HeadlessChrome 154 tested structured and text-like generated payloads at four rates. The server records request/header/first-write/completion timestamps; the detected 120 ms positive control validates Long Task observation for this artifact. | CPython 3.14.6 on Windows 11; loopback, generated list UI, nominal server pacing, one browser build; first-visible is an animation-frame proxy, not compositor paint. No production-network or representative CRM payload evidence. |
+| Compression and gzip-framed delivery under paced synthetic workloads | [`browser_benchmark.py`](benchmarks/response-delivery/browser_benchmark.py) | [`browser_results_compression.json`](benchmarks/response-delivery/browser_results_compression.json) | Electron-embedded four-mode run covers full JSON, gzip full JSON, NDJSON, and gzip NDJSON across the generated matrix; 384 server timing records are saved. Gzip levels 1, 3, 6, and 9 record resulting ratios and process CPU averaged over 100 compression repetitions. | Electron-embedded Chrome; the 120 ms Long Task positive control was not detected. The run is not a standalone-Chrome comparison; bodies are generated, gzip is precomputed, and no representative CRM corpus is included. |
+| Basic time-bounded authority policy and referral behavior | [`authority_policy.py`](04-reference-implementation/authority_policy.py) | [`test_authority_policy.py`](tests/test_authority_policy.py) and [`test_authority_referral.py`](tests/test_authority_referral.py) | Tests cover matching principal/action, grant bounds, revocation, priority precedence, deny-on-tie, referral propagation through aggregate/session/ticket paths, and no ticket issuance for `refer`. | No agent runtime, delegated authority, multi-hop derivation, or semantic-alignment implementation. |
+| Incremental NDJSON record decoding | [`ndjson_stream.py`](04-reference-implementation/ndjson_stream.py) | [`test_ndjson_stream.py`](tests/test_ndjson_stream.py) and [`test_ndjson_guards.py`](tests/test_ndjson_guards.py) | Local tests exercise incremental records, size limits, invalid data, and failure-state behavior. | No production browser adapter or server integration; browser JavaScript parsing is exercised by the separate loopback harness only. |
+| Approval-gated CRM workflow simulation | [`approval_workflow.py`](prototypes/crm_operational_copilot/approval_workflow.py) | [`test_approval_workflow.py`](prototypes/crm_operational_copilot/test_approval_workflow.py) and [`mutation_check.py`](mutation_check.py) | In-memory proposal, human review, current authority checks, bound-field/record/version guards, and audit ordering are tested and mutation-checked. | Caller-supplied identities; no live CRM, durable state, concurrency guarantees, or audit recovery. |
+| Context lifecycle | No implementation or benchmark | None | No context lifecycle behavior is verified in this repository | Representative workflow and retention policy experiment remain future work |
 | Local protocol invariants are valid | `WireEnvelope`, `Reassembler`, `DeliveryPolicy` | unit tests under `04-reference-implementation/...` | CRC, auth/validation, ordering, retry behavior, and reassembly are exercised locally | Not a network transport or multi-service deployment |
 
 ## Evidence posture

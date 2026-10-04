@@ -134,7 +134,7 @@ Reliability is woven through every topic rather than isolated into its own secti
 
 The following topics are intentionally not standalone themes during this iteration of the repository:
 
-- Security
+- Security as a standalone theme; agent authority and intent may be discussed only as architecture requirements for agent workflows, not as a general security guide
 - Kubernetes
 - Kafka
 - Cloud Platforms
@@ -158,17 +158,24 @@ README.md
 ROADMAP.md
 CONTRIBUTING.md
 LICENSE
+STYLE_GUIDE.md
+CONTEXT-LIFECYCLE-DECISION.md
+EVIDENCE.md
+REPO-MAP.md
 
 01-agent-architecture/
 02-context-and-memory/
 03-production-lessons/
 04-reference-implementation/
 05-field-notes/
+benchmarks/
+prototypes/
 archive/
 
 diagrams/
 templates/
 prompts/
+.github/
 ```
 
 Active content stays deliberately small. Historical design sketches, evaluations, and dated review artifacts belong under `archive/`, not in the active article tree.
@@ -188,6 +195,8 @@ Every major claim should eventually map to:
 
 The benchmark layer exists to prevent the repository from confusing conceptual reasoning with measured results. Benchmark outputs are treated as local, controlled evidence, not as production deployment metrics.
 
+This publishing gate applies equally to maintainer-authored and contributed work. Existing material that has not met it must be labeled as a research note or hypothesis and must not present unverified outcomes as findings.
+
 ## Current Implemented Surface vs Future Research Context
 
 The repository contains two different kinds of material, and readers should not blur them together.
@@ -195,13 +204,13 @@ The repository contains two different kinds of material, and readers should not 
 Read its maturity in four layers:
 
 1. **Current:** research articles, prompts, templates, and conceptual Mermaid diagrams.
-2. **Implemented reference slice:** local Python policy, UTF-8-safe chunking, authenticated envelopes (CRC32 plus HMAC-SHA256), bounded reassembly, message-scoped session retry/fallback, tests, CI, static checks, and demo.
+2. **Implemented reference slices:** adaptive-response policy, UTF-8-safe chunking, authenticated envelopes (CRC32 plus HMAC-SHA256), bounded reassembly, message-scoped session retry/fallback; plus a separate bounded authority evaluator for principal/action matching, grant time bounds, revocation, and policy priority. These have local tests, CI, and static checks; the adaptive response slice also has a demo.
 3. **Future reference extensions:** optional experiments or adapters, added only when a specific article and reproducible test justify them.
 4. **Potential production architecture:** servers, models, databases, queues, clients, telemetry backends, and deployment systems discussed as context only until code, dependencies, tests, and CI implement them.
 
 ### Current implemented surface
 
-The code that is actively present and testable in the repo today is intentionally small and local. It consists primarily of the Python package under `04-reference-implementation/adaptive-response-filter/` and the tests for that package. This is the only place where the repository currently implements a concrete wire-contract, chunking policy, checksum validation, and reassembly logic.
+The code that is actively present and testable in the repo today is intentionally small and local. The adaptive-response-filter modules implement the wire contract, chunking policy, checksum validation, and reassembly logic. A separate `04-reference-implementation/authority_policy.py` module evaluates a bounded principal/action/time grant against timestamped revocation and priority rules; it does not implement semantic intent or delegation.
 
 At the moment, the local implementation includes:
 
@@ -210,61 +219,9 @@ At the moment, the local implementation includes:
 - a `semantic_split()`/`_fixed_size_split()` chunking path
 - a bounded single-message `Reassembler`, plus `ReassemblySession` timeout/retry/fallback behavior and a manager for interleaved message IDs
 - a small demo script and pytest suite
+- a bounded authority policy evaluator with behavior tests under `tests/`
 
 This local implementation is deliberately not a full runtime stack. It does not require FastAPI, Pydantic, Redis, Postgres, a browser client, or a TypeScript service to run the tests and demo in this repository. The checked-in pytest suite and demo run against the local Python implementation only; no database, queue, HTTP service, or external transport layer is required for the current execution boundary.
-
-### Broader ecosystem ideas and future research context
-
-The following technologies and architectures may appear in article writing or future research because they shape agentic production systems, but they are not active requirements of the current repository implementation:
-
-- FastAPI or other web service runtimes
-- Pydantic models and request validation layers
-- Redis or other external state stores
-- Postgres or other durable persistence layers
-- message queues, brokers, or stream infrastructure
-- TypeScript client SDKs or browser transport code
-- progressive UI rendering and transport adapters
-- authenticated transport security or end-to-end encryption
-
-These ideas belong in the conceptual or future-facing portion of the project, not in the current local execution contract. They are research context, design vocabulary, or future integration directions. They should be treated as optional ecosystem patterns, not as repository dependencies required to run the reference slice.
-
-### Systemic Context vs. Active Dependencies
-
-This repository should be read as a documentation-led engineering knowledge base with a narrow local implementation slice, not as a monorepo for a live service stack.
-
-The active local dependencies are intentionally minimal:
-
-- Python standard library for the protocol logic
-- pytest for the executable tests
-- ruff and mypy for linting and static checks
-- the checked-in source modules under `04-reference-implementation/adaptive-response-filter/`
-
-The following are systemic context or future research directions rather than active runtime requirements for the current repo:
-
-- FastAPI, Starlette, or other HTTP servers
-- Pydantic, dataclasses-driven API models, or browser-side schema validation
-- Redis, Postgres, Kafka, or queue-backed persistence
-- TypeScript client code such as `client_reassembler.ts`
-- browser rendering, progressive UI state machines, or transport-connected retry callbacks
-- LLM provider SDKs and telemetry toolchains that belong in a larger deployed system
-
-This distinction matters because the repository's executable boundary is intentionally small: readers are meant to inspect the wire contract, chunk semantics, checksum validation, and bounded reassembly in local Python code without needing a database, queue, or external service runtime.
-
-### Systemic Dependencies & Future Research Context
-
-This repository does not currently contain a deployment-ready agent service. It is not a monorepo for a production platform. The article set may discuss systems that depend on external services, but those services are not part of the local execution environment necessary to run the repository's tests.
-
-When a diagram, article, or architectural discussion references a network boundary, queue, browser, store, or backend dependency, that reference should be read as:
-
-- conceptual architecture or production system context, or
-- a proposed extension beyond the current repository implementation, not
-- a currently required runtime dependency for this local codebase.
-
-A rule for future work:
-
-> If a dependency is required to make the local tests or demo run, it belongs in the current implementation boundary. If it is only required in a production deployment or a future research prototype, it belongs in the future context section.
-
-This keeps the repository honest: the local Python implementation verifies a narrow and useful protocol idea, while the broader ecosystem remains a larger engineering field to investigate later.
 
 ---
 
@@ -395,9 +352,9 @@ The workflow is deliberately linear rather than iterative within a single cycle.
 
 ---
 
-## Publication Cadence
+## Target Publication Cadence
 
-The repository operates on a two-week publication cycle.
+The planning target is a two-week publication cycle. The repository does not claim that this cadence has been met; treat it as a constraint for a cycle explicitly taken, not as a record of shipped articles.
 
 ### Week One
 
@@ -654,9 +611,7 @@ These are not rejected ideas. They are good ideas introduced too early, which is
 
 ## Guiding Principle
 
-The publication cadence is a commitment, not a suggestion.
-
-Every two-week cycle should produce one completed piece of work, even if the outcome is that the original hypothesis was wrong. If a cycle ends without something worth publishing, treat it as feedback on the scope of the experiment — not as permission to delay publication.
+For a cycle that is started, aim to publish one bounded result, including an inconclusive or negative result. If no meaningful result is ready, record that as a missed target rather than implying that the cadence was maintained.
 
 Narrow the next experiment.
 
