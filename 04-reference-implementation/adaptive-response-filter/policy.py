@@ -2,6 +2,8 @@
 Delivery policy — decides whether a serialized payload should be
 returned whole or handed to the chunker.
 
+Payloads at or above the byte threshold are chunked.
+
 Kept separate from the chunker itself so the threshold/heuristics can
 evolve (e.g. adaptive thresholds, payload-type-aware rules) without
 touching the splitting logic.

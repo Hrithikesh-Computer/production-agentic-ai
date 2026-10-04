@@ -156,6 +156,26 @@ def test_filter_api_returns_full_result_below_threshold():
     assert result.chunks == []
 
 
+def test_filter_api_threshold_boundary_modes():
+    response_filter = AdaptiveResponseFilter(
+        threshold_bytes=4,
+        max_chunk_bytes=2,
+        authentication_key=AUTH_KEY,
+    )
+
+    empty = response_filter.build("")
+    below = response_filter.build("abc")
+    exact = response_filter.build("abcd")
+    above = response_filter.build("abcde")
+
+    assert empty.mode == "full"
+    assert below.mode == "full"
+    assert exact.mode == "chunked"
+    assert above.mode == "chunked"
+    assert exact.chunks
+    assert above.chunks
+
+
 def test_middleware_full_buffer_path_emits_authenticated_envelope():
     envelopes = list(
         filter_response(
