@@ -163,6 +163,14 @@ PROTOCOL_REASSEMBLER = {
         '        if checksum(payload) != envelope.checksum.lower():\n            raise ValueError(f"checksum mismatch on chunk {sequence}")\n',
         "",
     ),
+    "manager: skip aggregate byte cap": (
+        "        if active_payload_bytes + added_bytes > self.max_total_bytes:\n",
+        "        if False:\n",
+    ),
+    "reassembler: double-count identical duplicate": (
+        "            return envelope, payload, 0, True\n",
+        "            return envelope, payload, len(payload), True\n",
+    ),
 }
 PROTOCOL_KEY = {
     "key: remove 16-byte minimum": (
