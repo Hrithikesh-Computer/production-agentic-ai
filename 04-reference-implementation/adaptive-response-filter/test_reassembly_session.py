@@ -95,6 +95,27 @@ def test_manager_accepts_existing_session_when_at_capacity():
     assert manager.add_chunk(_chunk("active", 1, 2, b"done")) == b"part-done"
 
 
+def test_session_ttl_uses_last_activity_deadline():
+    now = [0.0]
+    manager = ReassemblySessionManager(
+        authentication_key=AUTH_KEY,
+        request_retry=lambda _message_id, _missing: None,
+        request_full_buffer=lambda _message_id: b"fallback",
+        session_ttl_seconds=5.0,
+        clock=lambda: now[0],
+    )
+
+    assert manager.add_chunk(_chunk("active", 0, 3, b"first")) is None
+    now[0] = 4.0
+    assert manager.add_chunk(_chunk("active", 1, 3, b"second")) is None
+    now[0] = 8.0
+    assert manager.add_chunk(_chunk("new", 0, 2, b"new")) is None
+    assert "active" in manager.sessions
+    now[0] = 9.0
+    assert manager.add_chunk(_chunk("later", 0, 2, b"later")) is None
+    assert "active" not in manager.sessions
+
+
 def test_session_rejects_chunk_for_another_message():
     session = ReassemblySession(
         message_id="expected",

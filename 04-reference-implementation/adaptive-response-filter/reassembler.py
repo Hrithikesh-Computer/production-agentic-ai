@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import time
 from dataclasses import dataclass, field
 from typing import Callable, Mapping
@@ -213,9 +214,13 @@ class ReassemblySessionManager:
     request_retry: Callable[[str, list[int]], None]
     request_full_buffer: Callable[[str], bytes]
     max_sessions: int = 1024
+    session_ttl_seconds: float = 300.0
     policy: DeliveryPolicy = field(default_factory=DeliveryPolicy)
     clock: Callable[[], float] = time.monotonic
     sessions: dict[str, ReassemblySession] = field(default_factory=dict, init=False)
+    _session_activity: dict[str, float] = field(
+        default_factory=dict, init=False, repr=False
+    )
 
     def __post_init__(self) -> None:
         if isinstance(self.max_sessions, bool) or not isinstance(
@@ -224,21 +229,29 @@ class ReassemblySessionManager:
             raise TypeError("max_sessions must be an integer")
         if self.max_sessions <= 0:
             raise ValueError("max_sessions must be positive")
+        if isinstance(self.session_ttl_seconds, bool) or not isinstance(
+            self.session_ttl_seconds, (int, float)
+        ):
+            raise TypeError("session_ttl_seconds must be a number")
+        if not math.isfinite(self.session_ttl_seconds) or self.session_ttl_seconds <= 0:
+            raise ValueError("session_ttl_seconds must be finite and positive")
 
     def _evict_expired_sessions(self, now: float) -> None:
         expired = [
             message_id
-            for message_id, session in self.sessions.items()
-            if not session.reassembler.completed and now >= session._deadline
+            for message_id, last_activity in self._session_activity.items()
+            if now - last_activity >= self.session_ttl_seconds
         ]
         for message_id in expired:
             self.sessions.pop(message_id, None)
+            self._session_activity.pop(message_id, None)
 
     def add_chunk(self, chunk: WireEnvelope | Mapping[str, object]) -> bytes | None:
         envelope = chunk
+        now = self.clock()
+        self._evict_expired_sessions(now)
         if not isinstance(envelope, WireEnvelope):
             envelope = WireEnvelope.from_mapping(envelope)
-        now = self.clock()
         session = self.sessions.get(envelope.message_id)
         created = session is None
         if session is None:
@@ -257,9 +270,13 @@ class ReassemblySessionManager:
                 clock=self.clock,
             )
             self.sessions[envelope.message_id] = session
+            self._session_activity[envelope.message_id] = now
         try:
-            return session.add_chunk(envelope)
+            result = session.add_chunk(envelope)
+            self._session_activity[envelope.message_id] = now
+            return result
         except Exception:
             if created:
                 self.sessions.pop(envelope.message_id, None)
+                self._session_activity.pop(envelope.message_id, None)
             raise

@@ -86,10 +86,9 @@ def test_manager_rejects_sessions_beyond_cap():
 
 
 # R3: evict expired incomplete sessions lazily during the next manager intake.
-@pytest.mark.xfail(strict=True, reason="needs lifecycle work / protocol decision")
 def test_abandoned_sessions_are_evicted_after_ttl():
     now = [0.0]
-    manager = make_manager(clock=lambda: now[0])
+    manager = make_manager(clock=lambda: now[0], session_ttl_seconds=2.0)
     assert (
         manager.add_chunk(
             build_envelope(message_id="abandoned", sequence=0, total_chunks=2)
