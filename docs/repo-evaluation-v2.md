@@ -1,13 +1,13 @@
 # Repository Evaluation: Second Pass
 
 **Reviewed:** 2026-10-03
-**Scope:** Current working tree on `cleanup/dedupe`, including uncommitted changes. This is a repository-evidence review, not a customer or deployment assessment.
+**Scope:** Repository state first inspected on `cleanup/dedupe`, plus explicitly labeled follow-up commits and clean-checkout validations. Final review corrections are committed after the chronological commits listed below. This is a repository-evidence review, not a customer or deployment assessment.
 
 **Evidence labels:** **Fact** means directly observed in code, tests, docs, or command output. **Inference** means a reasoned assessment from that evidence. **Assumption** means unverified and not to be treated as a repo capability or customer requirement.
 
 ## Summary
 
-**Fact:** The repository has matured from a handbook plus reference slices into a handbook with a proposed CRM architecture bundle and a deterministic in-memory approval simulation. The architecture labels its services as proposed; the workflow tests demonstrate useful serial-path behavior. The first-inspection working tree reported 118 tests. After review edits, the working-tree suite reported 127 tests, Ruff clean, CI-targeted mypy clean on 14 source files, and whole-repo mypy clean on 25 source files. A clean checkout of `a1a71c8` passes tests, Ruff, and the CI mypy scope, but whole-repo mypy initially reports a duplicate `benchmark` module in the response-delivery and context-lifecycle benchmark directories. Commit `ae9150c` removes the conflicting context benchmark; clean checks of `ae9150c` and `c5237f4` pass whole-repo mypy on 25 files. The local interpreter is Python 3.14.6; CI configures Python 3.10.
+**Fact:** The repository has matured from a handbook plus reference slices into a handbook with a proposed CRM architecture bundle and a deterministic in-memory approval simulation. The architecture labels its services as proposed; the workflow tests demonstrate useful serial-path behavior. The first-inspection working tree reported 118 tests. After review edits, the suite reported 127 tests. A clean checkout of `a1a71c8` initially had a duplicate-module whole-repository mypy failure; commit `ae9150c` removes that collision. Clean checks of `ae9150c`, `c5237f4`, `23367a3`, and `2de763f` pass 127 tests, Ruff, and whole-repository mypy on 25 files. Isolated Python 3.10.20 checks at `23367a3` and `2de763f` also pass 127 tests, Ruff, and whole-repository mypy. The workspace interpreter is Python 3.14.6; CI configures Python 3.10.
 
 **Inference:** The work demonstrates competent architecture decomposition and evidence discipline, but not a customer-ready solution architecture. The largest remaining gap is proof at real identity, CRM, persistence, concurrency, and operations boundaries. The approval simulation's tested sequential flow should not be read as an atomic or authenticated workflow.
 
@@ -30,7 +30,7 @@ The prior pass's handbook scores are being compared under the same handbook-fit 
 
 **Top next actions**
 
-1. Add a Python version matrix, whole-repo mypy, NDJSON coverage, and workflow mutation/concurrency checks to CI. Add fresh mutants or an independent mutation-testing run; the current custom mutants were developed alongside the tests. Cleanup commits `ae9150c` and `c5237f4` remove obsolete benchmark fixtures and archive legacy material. CI remains unchanged.
+1. Extend CI from the current Python 3.10 job to a version matrix, and add NDJSON coverage plus workflow mutation/concurrency checks. Add fresh mutants or an independent mutation-testing run; the current custom mutants were developed alongside the tests. Whole-repository mypy is now included in CI.
 2. Fix approval identity binding, atomic state consumption, audit-failure recovery, and bounded state; add concurrency and audit-sink-failure tests.
 3. Rerun the four-arm matrix on representative CRM payloads and named target clients, including a second browser engine and a parse-once-per-animation-frame variant; retain the harness-hash comparison, then select a customer-pilot metric and baseline before revisiting ADR-001.
 
@@ -49,9 +49,7 @@ Findings above describe the workspace as first inspected unless explicitly marke
 - [`04-reference-implementation/ndjson_stream.py`](../04-reference-implementation/ndjson_stream.py), its tests, [`mutation_check.py`](../mutation_check.py), and the focused workflow/referral tests: committed with the evidence bundle.
 - [`03-production-lessons/01-adaptive-response-delivery.md`](../03-production-lessons/01-adaptive-response-delivery.md), [`benchmarks/response-delivery/README.md`](../benchmarks/response-delivery/README.md), [`benchmarks/response-delivery/benchmark.py`](../benchmarks/response-delivery/benchmark.py), and [`benchmarks/response-delivery/results.csv`](../benchmarks/response-delivery/results.csv): reconciled local benchmark methods, measurements, and evidence boundaries.
 - [`01-agent-architecture/01-agent-authority-and-intent.md`](../01-agent-architecture/01-agent-authority-and-intent.md), [`02-context-and-memory/01-beyond-token-windows.md`](../02-context-and-memory/01-beyond-token-windows.md), [`CONTEXT-LIFECYCLE-DECISION.md`](../CONTEXT-LIFECYCLE-DECISION.md), [`EVIDENCE.md`](../EVIDENCE.md), [`README.md`](../README.md), [`REPO-MAP.md`](../REPO-MAP.md), [`ROADMAP.md`](../ROADMAP.md), and [`benchmarks/README.md`](../benchmarks/README.md): reconciled repository scope, evidence boundaries, archived material, and references to removed benchmarks.
-- Follow-up evaluation on 2026-10-04: corrected stale run labels and counts, documented runtime-dependent completion cost and compression-level break-even/sensitivity, moved detailed tables to [`browser-matrix-evidence.md`](../benchmarks/response-delivery/browser-matrix-evidence.md), revised ADR-001 and the README benchmark paragraph, validated commit `a1a71c8` in a clean worktree, and allowed this report while retaining the ignore rule for other `docs/` content.
-
-Commit `00d7b51` scoped the first follow-up to this report, its ignore exception, and ADR-001. Commit `a1a71c8` records the browser evidence artifacts and related source/tests; `0de0c92` corrects the compression-level analysis. Commits `ae9150c` and `c5237f4` remove obsolete benchmark material and archive legacy documents. The documentation-reconciliation commit records the broader README, `EVIDENCE.md`, `REPO-MAP.md`, `ROADMAP.md`, and research-note updates. No CI change was made.
+- Follow-up work across commits `00d7b51` through the final review commit: corrected stale run labels/counts and compression analysis, moved detailed tables to [`browser-matrix-evidence.md`](../benchmarks/response-delivery/browser-matrix-evidence.md), reconciled repository documentation, added whole-repository mypy to CI, and validated clean checkouts including Python 3.10.20.
 
 ## 1. Verify Before Judging
 
@@ -61,13 +59,13 @@ Commit `00d7b51` scoped the first follow-up to this report, its ignore exception
 
 | Check | Local command/result | CI configuration/result difference |
 |---|---|---|
-| Tests | First inspection: **118 passed**; after review edits: **127 passed** | Clean detached `a1a71c8`, `ae9150c`, and `c5237f4`: `python -m pytest -q`, **127 passed** each. |
+| Tests | First inspection: **118 passed**; after review edits: **127 passed** | Clean detached `a1a71c8`, `ae9150c`, `c5237f4`, and `23367a3`: `python -m pytest -q`, **127 passed** each; isolated CPython 3.10.20 at `23367a3`: **127 passed**. |
 | Ruff | First-inspection working tree: **all checks passed** | Clean detached `a1a71c8`, `ae9150c`, and `c5237f4`: `python -m ruff check .`, **all checks passed** each. |
-| Mypy, CI scope | First-inspection Windows equivalent: **no issues in 14 source files** | Clean detached `a1a71c8`, same target list and Windows `MYPYPATH` equivalent: **no issues in 14 source files**. CI explicitly targets `04-reference-implementation/adaptive-response-filter` and two CRM workflow files; `authority_policy.py` is imported but not an explicit target, and `ndjson_stream.py` is not listed. CI does not run `mypy .` ([workflow](../.github/workflows/ci.yml)). |
-| Mypy, whole repo | First-inspection working tree: `python -m mypy .`, **no issues in 25 source files** | Clean detached `a1a71c8`: duplicate module `benchmark` in response-delivery and context-lifecycle. After benchmark cleanup, clean detached `ae9150c` and `c5237f4`: **no issues in 25 source files**. |
+| Mypy, CI scope | First-inspection Windows equivalent: **no issues in 14 source files** | Clean detached `a1a71c8`: **no issues in 14 source files** with the existing targeted command. CI now runs this targeted check plus `python -m mypy .` ([workflow](../.github/workflows/ci.yml)). |
+| Mypy, whole repo | First-inspection working tree: `python -m mypy .`, **no issues in 25 source files** | Clean detached `a1a71c8`: duplicate module `benchmark`; clean detached `ae9150c`, `c5237f4`, and `23367a3`: **no issues in 25 source files**. Isolated CPython 3.10.20 at `23367a3`: **no issues in 25 source files**. |
 | Demo | `python 04-reference-implementation/adaptive-response-filter/demo.py`; completed | CI runs this after lint, tests, and mypy ([workflow](../.github/workflows/ci.yml)). |
 
-CI uses Ubuntu and Python 3.10; the local venv is Windows/Python 3.14.6. CI's `MYPYPATH` uses `:` on Linux; the equivalent local Windows path-list separator was `;`. The clean-commit local results do not prove the CI runner or Python 3.10 result. CI installs `.[dev]`; this review used the already configured local environment. See [CI workflow](../.github/workflows/ci.yml).
+CI uses Ubuntu and Python 3.10; the workspace venv is Windows/Python 3.14.6. A clean `23367a3` checkout was tested with isolated CPython 3.10.20 using `uv --no-project`; tests, Ruff, and whole-repository mypy passed there. This does not substitute for the Ubuntu CI runner. CI installs `.[dev]`; the local 3.10 run used isolated pytest, Ruff, and mypy tools. See [CI workflow](../.github/workflows/ci.yml).
 
 ### Committed versus uncommitted (first-inspection snapshot)
 
@@ -88,7 +86,17 @@ d6cb57b code cleanup
 1ea619e Apply requested documentation fixes and reference updates.
 ```
 
-**Follow-up history:** Commit `00d7b51` (`docs: reconcile response delivery evaluation`) recorded the report, its ignore exception, and ADR-001. Commit `a1a71c8` (`bench: publish response delivery evidence`) recorded the benchmark artifacts and related implementation/tests without including the unrelated staged renames listed in the original snapshot.
+**Follow-up commit history (chronological):**
+
+1. `00d7b51` — added the evaluation report, its ignore exception, and ADR-001 updates.
+2. `a1a71c8` — published browser evidence, harness/runner, and supporting implementation/tests.
+3. `0de0c92` — corrected compression-level optima and sensitivity analysis.
+4. `ae9150c` — retired colliding benchmark fixtures and refreshed response-delivery timings; whole-repository mypy then passed.
+5. `c5237f4` — archived legacy design and security documents.
+6. `23367a3` — reconciled README, EVIDENCE, REPO-MAP, ROADMAP, research notes, and this report.
+7. `2de763f` — added whole-repository mypy to CI.
+
+The cleanup commits were separately tested in clean worktrees. `a1a71c8` was the only tested commit in this sequence with the duplicate-module mypy error, before `ae9150c` removed the collision.
 
 **Fact, first-inspection worktree:** The overall worktree was not clean. Unstaged modifications: `01-agent-architecture/01-agent-authority-and-intent.md`, `02-context-and-memory/01-beyond-token-windows.md`, `03-production-lessons/01-adaptive-response-delivery.md`, `CONTEXT-LIFECYCLE-DECISION.md`, `EVIDENCE.md`, `README.md`, `REPO-MAP.md`, `ROADMAP.md`, `benchmarks/README.md`, `benchmarks/response-delivery/README.md`, `benchmarks/response-delivery/benchmark.py`, and `benchmarks/response-delivery/results.csv`. Staged deletions: `benchmarks/authority-conformance/README.md` and `benchmarks/context-lifecycle/README.md`. Staged renames: the EMR design note into `archive/design-sketches-2026/`, three `SECURITY-*.md` files into `archive/review-artifacts-2026/security-mappings/`, and the authority conformance test into `tests/test_authority_policy.py` (the renamed test was also modified in the worktree). The context benchmark had a staged rename to `test_policy_fixture.py` plus an unstaged deletion. Untracked at that snapshot: `04-reference-implementation/ndjson_stream.py`, `benchmarks/response-delivery/browser_benchmark.py`, `benchmarks/response-delivery/browser_results.json`, `mutation_check.py`, `tests/test_ndjson_guards.py`, and `tests/test_ndjson_stream.py`. Source: `git status --short`.
 
@@ -307,12 +315,14 @@ The architecture index already proposes a 30-minute path; this version adds expl
 ## Verification Record
 
 - Clean detached worktree at `a1a71c8`: `python -m pytest -q` **127 passed**; `python -m ruff check .` **all checks passed**; CI-scoped mypy with the Windows `MYPYPATH` equivalent **no issues in 14 source files**.
-- The clean `a1a71c8` whole-repository `python -m mypy .` check fails before broader checking because the two benchmark scripts map to the same top-level module name, `benchmark`. The first-inspection dirty working tree's broader mypy run passed on 25 files because the context-lifecycle benchmark had a pending rename/removal there. The cleanup commit `ae9150c` removes that collision; clean detached checks at `ae9150c` and `c5237f4` pass whole-repository mypy with no issues in 25 files.
+- The clean `a1a71c8` whole-repository `python -m mypy .` check failed because two benchmark scripts mapped to the same top-level module name, `benchmark`. Commit `ae9150c` removed that collision; clean detached checks at `ae9150c`, `c5237f4`, `23367a3`, and `2de763f` pass whole-repository mypy with no issues in 25 files.
 - `python -m mypy mutation_check.py`: **no issues in 1 source file**.
-- The clean `a1a71c8` import-path check resolved `authority_policy`, `ndjson_stream`, `approval_workflow`, `filter`, and `reassembler` from files inside the detached worktree, not the primary checkout.
+- A preliminary import check using the shared editable venv was not isolated: pytest collection resolved `authority_policy` and `ndjson_stream` from the primary checkout. The corrected check used `uv --no-project` at clean `23367a3` with `PYTHONPATH` unset; pytest collection loaded `authority_policy`, `ndjson_stream`, and `approval_workflow` from files inside the detached checkout.
 - `python mutation_check.py`: authority **36/36 applicable mutants killed** (one not applicable due to changed source), NDJSON **14/14 killed**, approval workflow **15/15 killed**. With both new field tests deselected, the two field-guard mutants survived and 13/15 workflow mutants were killed; same-round tests/mutants, not independent evidence.
 - Full-suite coverage columns (`Stmts`, `Miss`, `Branch`, `BrPart`, `Cover`): authority policy **96, 0, 50, 0, 100%**; approval workflow **231, 41, 76, 20, 80%**.
 - Browser follow-up: legacy three-mode standalone, clean four-mode standalone, and Electron four-mode artifacts are reported separately. The two standalone runs agree within 3.7 ms first-visible and 4.5 ms completion on the common structured payload; Electron's structured 10 MB/s NDJSON completion penalty is 30.0 ms versus 86.9/89.4 ms standalone. The clean run has 384 timing records, a passing 121 ms Long Task control, matching payload sizes, harness SHA-256, and same-process compression sweep; Electron has 384 records but a failed control and incomplete provenance. Detailed timing and compression-level tables are in the [browser matrix evidence](../benchmarks/response-delivery/browser-matrix-evidence.md); paired server CPU is measured, client decompression is not.
-- Clean detached worktrees at `ae9150c` and `c5237f4`: full tests **127 passed**, Ruff **all checks passed**, and `python -m mypy .` **no issues in 25 source files**.
+- Clean detached worktrees at `ae9150c`, `c5237f4`, `23367a3`, and `2de763f`: full tests **127 passed**, Ruff **all checks passed**, and `python -m mypy .` **no issues in 25 source files**. Isolated CPython 3.10.20 at `23367a3` and `2de763f`: **127 tests passed**, Ruff passed, and mypy reported no issues in 25 files.
+- Commit-by-commit link audit (tracked Markdown links, excluding code examples and allowing directory targets): `a1a71c8` and `0de0c92` each had five broken links (archive targets not yet tracked and missing archive README files); `ae9150c` had seven (also two links to removed benchmark directories); `c5237f4` had seven (also stale EMR paths after archive moves); `23367a3` had three, including nonexistent archive README targets. This final correction points REPO-MAP to tracked archive directories; the final tracked-link check reports zero broken links.
+- Benchmark README/CSV check: `a1a71c8` and `0de0c92` had the median/max prose but the older CSV schema, so those figures were not verifiable from that artifact. At `ae9150c`, `c5237f4`, and `23367a3`, the 300 KB CSV values round to the README's 1.69/2.92 ms full build, 22.70/28.77 ms chunked build, and 5.87/8.27 ms reassembly.
 - CI reference demo command: completed.
-- Commands ran against the current local worktree, including its uncommitted changes. No customer, cloud, production, or external-trends validation was performed.
+- Final review changes are committed and the primary worktree is clean. No customer, cloud, production, or external-trends validation was performed.

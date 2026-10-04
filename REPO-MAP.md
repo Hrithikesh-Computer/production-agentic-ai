@@ -19,9 +19,8 @@ The out-of-scope [EMR-to-PostgreSQL architecture analysis](archive/design-sketch
 
 ## Historical Archives
 
-- [Design sketches, archived 2026-10](archive/design-sketches-2026/README.md) — enterprise pattern notes and the relocated EMR stub.
-- [Evaluations, archived 2026-10](archive/evaluations-2026/README.md) — internal review/evaluation artifacts.
-- [Review artifacts, archived 2026-10](archive/review-artifacts-2026/README.md) — dated reconciliation, authority, cost/performance, audit, and summary records.
+- [Design sketches, archived 2026-10](archive/design-sketches-2026/) — enterprise pattern notes and the relocated EMR stub.
+- [Evaluations and review artifacts, archived 2026-10](archive/review-artifacts-2026/) — internal evaluation, dated reconciliation, authority, cost/performance, audit, and summary records.
 - [Security mappings](archive/review-artifacts-2026/security-mappings/) — evidence audits for archived designs and the local CRM mock.
 
 ## Root
