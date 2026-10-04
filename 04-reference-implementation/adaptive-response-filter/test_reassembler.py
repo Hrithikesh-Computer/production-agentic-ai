@@ -76,6 +76,14 @@ def test_hmac_rejects_tampering_even_if_crc_is_recomputed():
     assert reassembler.total_chunks is None
 
 
+def test_hmac_rejects_message_id_tampering():
+    envelope = _to_envelope(0, 1, b'{"a": 1}', True)
+    envelope["message_id"] = "different-message"
+
+    with pytest.raises(ValueError, match="authentication failed"):
+        Reassembler(authentication_key=AUTH_KEY).add_chunk(envelope)
+
+
 def test_missing_reports_correctly():
     reassembler = Reassembler(authentication_key=AUTH_KEY)
     reassembler.add_chunk(_to_envelope(0, 3, b'{"a": 1}', False))
