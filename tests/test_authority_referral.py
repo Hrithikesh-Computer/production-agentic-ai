@@ -43,6 +43,21 @@ def test_deny_wins_equal_priority_conflict_with_refer():
     assert decision.effect == "deny"
 
 
+def test_refer_wins_equal_priority_conflict_with_allow():
+    decision = evaluate_authority(
+        grant=GRANT,
+        principal="agent-1",
+        action="read:account",
+        at=50,
+        rules=[
+            PolicyRule("read:account", "allow", 20),
+            PolicyRule("read:account", "refer", 20),
+        ],
+    )
+
+    assert decision.effect == "refer"
+
+
 def test_aggregate_propagates_refer_without_authorizing_action_set():
     decision = evaluate_aggregate_authority(
         grants_by_action={"read:account": GRANT},

@@ -36,4 +36,5 @@ This is a design choice for a proposed experiment, not a production decision val
 - [Repository delivery experiment](../../03-production-lessons/01-adaptive-response-delivery.md) and [benchmark evidence](../../benchmarks/response-delivery/README.md).
 - [Envelope reference boundary](../../04-reference-implementation/README.md).
 - The legacy three-mode standalone, clean four-mode standalone, and Electron four-mode artifacts are recorded separately in the [benchmark evidence](../../benchmarks/response-delivery/README.md). The clean standalone run has a passing Long Task control and recorded harness provenance; Electron has matching four-mode payload sizes but a failed Long Task control and incomplete provenance.
+- Detailed P50 timing, compression-level, and break-even calculations are in the [browser matrix evidence](../../benchmarks/response-delivery/browser-matrix-evidence.md).
 - Customer payloads, API contract, client capability, proxy buffering, network profile, retry semantics, and target SLOs: **not found in repo; discovery required**.

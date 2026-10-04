@@ -1,0 +1,108 @@
+from __future__ import annotations
+
+import json
+from collections.abc import Mapping, Sequence
+from typing import Any
+
+DEFAULT_MAX_RECORD_BYTES = 1_048_576
+
+
+class NDJSONError(ValueError):
+    """Base class for NDJSON stream failures."""
+
+
+class IncompleteRecordError(NDJSONError):
+    """Raised when a stream ends with an unterminated NDJSON record."""
+
+
+class RecordTooLargeError(NDJSONError):
+    """Raised when one record exceeds the configured size limit."""
+
+
+class DecoderFailedError(NDJSONError):
+    """Raised when a decoder is used after a failure or discard."""
+
+
+class NDJSONDecoder:
+    """Incrementally decode newline-delimited JSON objects from UTF-8 bytes.
+
+    Failure policy (matches "discard partial state, retry the whole request"):
+    any error poisons the decoder. Records parsed earlier in the same feed()
+    call are not returned, and the caller must discard everything it has
+    already received for this response. Nothing is skipped silently.
+    """
+
+    def __init__(self, max_record_bytes: int = DEFAULT_MAX_RECORD_BYTES) -> None:
+        if max_record_bytes <= 0:
+            raise ValueError("max_record_bytes must be positive")
+        self._max = max_record_bytes
+        self._pending = bytearray()
+        self._finished = False
+        self._failed = False
+
+    @property
+    def failed(self) -> bool:
+        return self._failed
+
+    def _fail(self) -> None:
+        self._failed = True
+        self._pending.clear()
+
+    def feed(self, data: bytes) -> list[dict[str, Any]]:
+        if self._failed:
+            raise DecoderFailedError("decoder failed; discard the response and retry")
+        if self._finished:
+            raise ValueError("decoder is finished")
+        if not isinstance(data, bytes):
+            raise TypeError("data must be bytes")
+        self._pending.extend(data)
+        records: list[dict[str, Any]] = []
+        try:
+            while True:
+                delimiter = self._pending.find(b"\n")
+                if delimiter < 0:
+                    if len(self._pending) > self._max:
+                        raise RecordTooLargeError("record exceeds size limit")
+                    break
+                if delimiter > self._max:
+                    raise RecordTooLargeError("record exceeds size limit")
+                line = bytes(self._pending[:delimiter])
+                del self._pending[: delimiter + 1]
+                if not line.strip():
+                    continue
+                value = json.loads(line.decode("utf-8"))
+                if not isinstance(value, dict):
+                    raise NDJSONError("NDJSON records must be JSON objects")
+                records.append(value)
+        except Exception:
+            self._fail()
+            raise
+        return records
+
+    def finish(self) -> None:
+        if self._failed:
+            raise DecoderFailedError("decoder failed; discard the response and retry")
+        if self._finished:
+            return
+        self._finished = True
+        if self._pending:
+            self._fail()
+            raise IncompleteRecordError("stream ended inside an NDJSON record")
+
+    def discard(self) -> None:
+        """Abandon an incomplete response after transport failure."""
+        self._fail()
+        self._finished = True
+
+
+def encode_record(value: Mapping[str, object]) -> bytes:
+    """Encode one JSON object as an NDJSON record including its delimiter."""
+    if not isinstance(value, Mapping):
+        raise TypeError("NDJSON records must be mappings")
+    return json.dumps(
+        value, ensure_ascii=False, separators=(",", ":")
+    ).encode("utf-8") + b"\n"
+
+
+def encode_records(values: Sequence[Mapping[str, object]]) -> bytes:
+    return b"".join(encode_record(value) for value in values)

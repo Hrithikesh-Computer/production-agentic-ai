@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 from approval_workflow import (
     APPROVE_SCOPE,
@@ -93,6 +95,18 @@ def test_requester_cannot_approve_own_proposal():
     assert workflow.status(proposal.proposal_id) == "pending"
 
 
+def test_execution_actor_must_match_proposal_requester():
+    workflow, _ = _workflow()
+    proposal = _proposal(workflow)
+    workflow.review(proposal.proposal_id, reviewer="reviewer", approve=True, at=101)
+    workflow.authority.set_scopes("mallory", {WRITE_SCOPE})
+
+    with pytest.raises(PermissionError, match="does not match requester"):
+        workflow.execute(proposal.proposal_id, actor="mallory", at=102)
+
+    assert _account_owner(workflow) == "A. Singh"
+
+
 def test_connector_rejects_write_without_matching_approval_record():
     workflow, _ = _workflow()
 
@@ -110,6 +124,36 @@ def test_connector_rejects_write_without_matching_approval_record():
     assert _account_owner(workflow) == "A. Singh"
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "customer_id"),
+    [
+        ("health", "M. Chen", "CUST-1001"),
+        ("account_owner", "S. Lee", "CUST-1001"),
+        ("account_owner", "M. Chen", "CUST-1002"),
+    ],
+    ids=["field-substitution", "value-substitution", "record-substitution"],
+)
+def test_connector_rejects_bound_action_substitution(field, value, customer_id):
+    workflow, _ = _workflow()
+    proposal = _proposal(workflow)
+    workflow.review(proposal.proposal_id, reviewer="reviewer", approve=True, at=101)
+    approval_record = workflow._get_record(proposal.proposal_id)
+    before = workflow.crm.read_account("alice", customer_id)
+
+    with pytest.raises(PermissionError, match="approval does not match"):
+        workflow.crm.update_account(
+            actor="alice",
+            customer_id=customer_id,
+            field=field,
+            value=value,
+            expected_version=1,
+            at=102,
+            approval_record=approval_record,
+        )
+
+    assert workflow.crm.read_account("alice", customer_id) == before
+
+
 def test_proposal_requires_current_write_authority():
     workflow, _ = _workflow()
 
@@ -121,6 +165,41 @@ def test_proposal_requires_current_write_authority():
             proposed_value="M. Chen",
             at=100,
         )
+
+
+def test_proposal_rejects_disallowed_field():
+    workflow, _ = _workflow()
+
+    with pytest.raises(ValueError, match="cannot be updated"):
+        workflow.submit_update(
+            requester="alice",
+            customer_id="CUST-1001",
+            field="restricted_field",
+            proposed_value="M. Chen",
+            at=100,
+        )
+
+
+def test_connector_rejects_disallowed_approved_field():
+    workflow, _ = _workflow()
+    proposal = _proposal(workflow)
+    workflow.review(proposal.proposal_id, reviewer="reviewer", approve=True, at=101)
+    approval_record = workflow._get_record(proposal.proposal_id)
+    approval_record.proposal = replace(proposal, field="restricted_field")
+    before = workflow.crm.read_account("alice", "CUST-1001")
+
+    with pytest.raises(ValueError, match="cannot be updated"):
+        workflow.crm.update_account(
+            actor="alice",
+            customer_id="CUST-1001",
+            field="restricted_field",
+            value=proposal.proposed_value,
+            expected_version=proposal.expected_record_version,
+            at=102,
+            approval_record=approval_record,
+        )
+
+    assert workflow.crm.read_account("alice", "CUST-1001") == before
 
 
 def test_write_scope_revocation_after_approval_blocks_execution():
@@ -147,6 +226,19 @@ def test_reviewer_scope_revocation_after_approval_blocks_execution():
     assert _account_owner(workflow) == "A. Singh"
 
 
+def test_execution_coordinator_rechecks_reviewer_authority():
+    workflow, _ = _workflow()
+    proposal = _proposal(workflow)
+    record = workflow._get_record(proposal.proposal_id)
+    workflow.review(proposal.proposal_id, reviewer="reviewer", approve=True, at=101)
+    workflow.authority.set_scopes("reviewer", set())
+
+    with pytest.raises(PermissionError, match="reviewer approval authority"):
+        workflow._require_decision(
+            "alice", WRITE_SCOPE, 102, approval_record=record
+        )
+
+
 def test_changed_record_invalidates_approval():
     workflow, _ = _workflow()
     proposal = _proposal(workflow)
@@ -158,6 +250,28 @@ def test_changed_record_invalidates_approval():
 
     assert workflow.status(proposal.proposal_id) == "stale"
     assert _account_owner(workflow) == "A. Singh"
+
+
+def test_connector_rechecks_record_version_before_mutation():
+    workflow, _ = _workflow()
+    proposal = _proposal(workflow)
+    workflow.review(proposal.proposal_id, reviewer="reviewer", approve=True, at=101)
+    approval_record = workflow._get_record(proposal.proposal_id)
+    workflow.crm.simulate_external_update("CUST-1001", "health", "At risk")
+    before = workflow.crm.read_account("alice", "CUST-1001")
+
+    with pytest.raises(StaleRecordError, match="changed after the proposal"):
+        workflow.crm.update_account(
+            actor="alice",
+            customer_id="CUST-1001",
+            field="account_owner",
+            value="M. Chen",
+            expected_version=proposal.expected_record_version,
+            at=102,
+            approval_record=approval_record,
+        )
+
+    assert workflow.crm.read_account("alice", "CUST-1001") == before
 
 
 def test_expired_approval_and_replay_are_denied():

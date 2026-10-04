@@ -82,7 +82,7 @@ python -m pytest benchmarks/authority-conformance/test_authority_conformance.py 
 
 This repository is intentionally a reliability-first, architecture-first knowledge base and local reference implementation. It is not a framework, production runtime, or deployed AI platform.
 
-The benchmark layer under [benchmarks/README.md](./benchmarks/README.md) exists to strengthen the strongest ideas without pretending they are production deployment evidence. Every benchmark is designed to be explicit about what is being measured and what remains outside the current evidence boundary.
+The evidence layer under [benchmarks/README.md](./benchmarks/README.md) contains bounded local measurements and policy tests, not production deployment evidence. The response-delivery browser harness compares full JSON, gzip full JSON, NDJSON, and gzip NDJSON over server-paced loopback. It has three distinct artifacts: a legacy three-mode standalone HeadlessChrome run, a clean four-mode standalone HeadlessChrome run with a passing Long Task positive control and recorded harness provenance, and a four-mode Electron-embedded run whose Long Task control failed and whose historical provenance is incomplete. The clean standalone and Electron four-mode runs use matching payload sizes; their runtime-specific results should not be conflated. Detailed timing and compression-level results are in the [browser matrix evidence](./benchmarks/response-delivery/browser-matrix-evidence.md).
 
 The repository's strongest local evidence is currently:
 

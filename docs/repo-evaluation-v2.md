@@ -30,7 +30,7 @@ The prior pass's handbook scores are being compared under the same handbook-fit 
 
 **Top next actions**
 
-1. After reviewing the dirty tree, preserve the selected staged/untracked work in logical commits; update CI to test a Python version matrix, whole-repo mypy, NDJSON coverage, and workflow mutation/concurrency checks. Add fresh mutants or an independent mutation-testing run; the current custom mutants were developed alongside the tests. No commit or CI change was made; review edits are listed above.
+1. After reviewing the dirty tree, preserve the selected staged/untracked work in logical commits; update CI to test a Python version matrix, whole-repo mypy, NDJSON coverage, and workflow mutation/concurrency checks. Add fresh mutants or an independent mutation-testing run; the current custom mutants were developed alongside the tests. Commit `00d7b51` recorded the report, ignore exception, and ADR-001; this follow-up adds the linked benchmark evidence and source/test artifacts. CI remains unchanged.
 2. Fix approval identity binding, atomic state consumption, audit-failure recovery, and bounded state; add concurrency and audit-sink-failure tests.
 3. Rerun the four-arm matrix on representative CRM payloads and named target clients, including a second browser engine and a parse-once-per-animation-frame variant; retain the harness-hash comparison, then select a customer-pilot metric and baseline before revisiting ADR-001.
 
@@ -45,9 +45,9 @@ Findings above describe the workspace as first inspected unless explicitly marke
 - [`benchmarks/response-delivery/run_standalone_cdp.mjs`](../benchmarks/response-delivery/run_standalone_cdp.mjs) and [`benchmarks/response-delivery/browser_results_standalone_compression.json`](../benchmarks/response-delivery/browser_results_standalone_compression.json): added a fresh-profile CDP runner that awaits the benchmark promise and saved a clean standalone four-arm run with a passing Long Task control.
 - [`benchmarks/response-delivery/browser_results_compression.json`](../benchmarks/response-delivery/browser_results_compression.json): generated the four-mode Electron run; it is separate from the earlier standalone-Chrome result.
 - [`03-production-lessons/01-adaptive-response-delivery.md`](../03-production-lessons/01-adaptive-response-delivery.md), [`benchmarks/response-delivery/README.md`](../benchmarks/response-delivery/README.md), [`README.md`](../README.md), [`REPO-MAP.md`](../REPO-MAP.md), and [`EVIDENCE.md`](../EVIDENCE.md): reconciled the standalone values and listed the new modules and follow-up evidence.
-- Follow-up evaluation on 2026-10-04: corrected stale run labels and counts, documented runtime-dependent completion cost and the compression-level trade-off, revised ADR-001 and the README benchmark paragraph, and allowed this report while retaining the ignore rule for other `docs/` content.
+- Follow-up evaluation on 2026-10-04: corrected stale run labels and counts, documented runtime-dependent completion cost and compression-level break-even, moved detailed tables to [`browser-matrix-evidence.md`](../benchmarks/response-delivery/browser-matrix-evidence.md), revised ADR-001 and the README benchmark paragraph, and allowed this report while retaining the ignore rule for other `docs/` content.
 
-No CI change was made. The follow-up commit is scoped to this report, its ignore exception, and ADR-001; the README benchmark paragraph edit remains unstaged alongside the broader existing README changes, and other dirty-tree changes remain untouched.
+Commit `00d7b51` scoped the first follow-up to this report, its ignore exception, and ADR-001. This follow-up records the browser evidence artifacts and related source/tests in a separate commit; the README benchmark paragraph is included as a selected hunk, leaving its broader existing edits untouched. No CI change was made.
 
 ## 1. Verify Before Judging
 
@@ -65,11 +65,11 @@ No CI change was made. The follow-up commit is scoped to this report, its ignore
 
 CI uses Ubuntu and Python 3.10; the local venv is Windows/Python 3.14.6. CI's `MYPYPATH` uses `:` on Linux; the equivalent local Windows path-list separator was `;`. Therefore these successful local runs do not prove the CI runner or Python 3.10 result. CI installs `.[dev]`; this review used the already configured local environment. See [CI workflow](../.github/workflows/ci.yml).
 
-### Committed versus uncommitted
+### Committed versus uncommitted (first-inspection snapshot)
 
-**Fact:** `git status --short -- architecture prototypes/crm_operational_copilot` returned no entries. The architecture bundle and approval workflow are committed at `HEAD` (`5c4afbf`); the history includes `59aaabe` (proposed CRM architecture), `513ab5f` (route referrals through CRM approval), `2732f1b` (cost/discovery artifacts), and `5c4afbf` (architecture review guide).
+**Fact, as first inspected:** `git status --short -- architecture prototypes/crm_operational_copilot` returned no entries. At that snapshot, the architecture bundle and approval workflow were committed at then-`HEAD` (`5c4afbf`); the history included `59aaabe` (proposed CRM architecture), `513ab5f` (route referrals through CRM approval), `2732f1b` (cost/discovery artifacts), and `5c4afbf` (architecture review guide).
 
-`git log -10 --oneline` returned:
+`git log -10 --oneline` at first inspection returned:
 
 ```text
 5c4afbf docs: add architecture review guide
@@ -84,7 +84,9 @@ d6cb57b code cleanup
 1ea619e Apply requested documentation fixes and reference updates.
 ```
 
-**Fact:** The overall worktree is not clean. Unstaged modifications: `01-agent-architecture/01-agent-authority-and-intent.md`, `02-context-and-memory/01-beyond-token-windows.md`, `03-production-lessons/01-adaptive-response-delivery.md`, `CONTEXT-LIFECYCLE-DECISION.md`, `EVIDENCE.md`, `README.md`, `REPO-MAP.md`, `ROADMAP.md`, `benchmarks/README.md`, `benchmarks/response-delivery/README.md`, `benchmarks/response-delivery/benchmark.py`, and `benchmarks/response-delivery/results.csv`. Staged deletions: `benchmarks/authority-conformance/README.md` and `benchmarks/context-lifecycle/README.md`. Staged renames: the EMR design note into `archive/design-sketches-2026/`, three `SECURITY-*.md` files into `archive/review-artifacts-2026/security-mappings/`, and the authority conformance test into `tests/test_authority_policy.py` (the renamed test is also modified in the worktree). The context benchmark has a staged rename to `test_policy_fixture.py` plus an unstaged deletion. Untracked: `04-reference-implementation/ndjson_stream.py`, `benchmarks/response-delivery/browser_benchmark.py`, `benchmarks/response-delivery/browser_results.json`, `mutation_check.py`, `tests/test_ndjson_guards.py`, and `tests/test_ndjson_stream.py`. Source: `git status --short`.
+**Follow-up history:** Commit `00d7b51` (`docs: reconcile response delivery evaluation`) then recorded the report, its ignore exception, and ADR-001. This evaluation's evidence commit records the benchmark artifacts and related implementation/tests without including the unrelated staged renames listed in the original snapshot.
+
+**Fact, first-inspection worktree:** The overall worktree was not clean. Unstaged modifications: `01-agent-architecture/01-agent-authority-and-intent.md`, `02-context-and-memory/01-beyond-token-windows.md`, `03-production-lessons/01-adaptive-response-delivery.md`, `CONTEXT-LIFECYCLE-DECISION.md`, `EVIDENCE.md`, `README.md`, `REPO-MAP.md`, `ROADMAP.md`, `benchmarks/README.md`, `benchmarks/response-delivery/README.md`, `benchmarks/response-delivery/benchmark.py`, and `benchmarks/response-delivery/results.csv`. Staged deletions: `benchmarks/authority-conformance/README.md` and `benchmarks/context-lifecycle/README.md`. Staged renames: the EMR design note into `archive/design-sketches-2026/`, three `SECURITY-*.md` files into `archive/review-artifacts-2026/security-mappings/`, and the authority conformance test into `tests/test_authority_policy.py` (the renamed test was also modified in the worktree). The context benchmark had a staged rename to `test_policy_fixture.py` plus an unstaged deletion. Untracked at that snapshot: `04-reference-implementation/ndjson_stream.py`, `benchmarks/response-delivery/browser_benchmark.py`, `benchmarks/response-delivery/browser_results.json`, `mutation_check.py`, `tests/test_ndjson_guards.py`, and `tests/test_ndjson_stream.py`. Source: `git status --short`.
 
 ### Previous report: top ten actions
 
@@ -118,11 +120,11 @@ d6cb57b code cleanup
 
 ### Test and mutation evidence scope
 
-**Fact:** The untracked [`mutation_check.py`](../mutation_check.py) uses temporary copies to mutate `authority_policy.py`, `ndjson_stream.py`, and `approval_workflow.py`; workflow mutants run both the authority test directory and the focused workflow suite. The initial run killed 36/36 applicable authority mutants, 14/14 NDJSON mutants, and 13/13 initial workflow mutants; one authority mutant was not applicable because its source pattern had changed. After adding two field-guard tests, the workflow set grew to 15 mutants: with both tests deselected, 13/15 were killed and both allowlist mutants survived; with the tests present, 15/15 were killed. The suite grew from 121 to 127 tests in the same round, so this is sensitivity evidence, not independent mutation evidence. CI has no mutation-testing or coverage step ([CI workflow](../.github/workflows/ci.yml)).
+**Fact:** The custom [`mutation_check.py`](../mutation_check.py) uses temporary copies to mutate `authority_policy.py`, `ndjson_stream.py`, and `approval_workflow.py`; workflow mutants run both the authority test directory and the focused workflow suite. The initial run killed 36/36 applicable authority mutants, 14/14 NDJSON mutants, and 13/13 initial workflow mutants; one authority mutant was not applicable because its source pattern had changed. After adding two field-guard tests, the workflow set grew to 15 mutants: with both tests deselected, 13/15 were killed and both allowlist mutants survived; with the tests present, 15/15 were killed. The suite grew from 121 to 127 tests in the same round, so this is sensitivity evidence, not independent mutation evidence. CI has no mutation-testing or coverage step ([CI workflow](../.github/workflows/ci.yml)).
 
 **Follow-up fact:** The first fresh mutant used a non-specific source match and removed the connector's duplicate allowlist guard, not `submit_update`'s check. The re-anchored proposal mutant and a separately anchored connector mutant were run with both new field-guard tests deselected: 13/15 workflow mutants were killed, and both field-guard mutants survived. With `test_proposal_rejects_disallowed_field` and `test_connector_rejects_disallowed_approved_field` present, both corresponding mutants were killed and the full workflow set was 15/15. The results remain same-round evidence, not independent tool-generated mutation evidence.
 
-**Fact:** The CI mypy command does not list `ndjson_stream.py`; the module is untracked and outside the explicit CI target list. `authority_policy.py` is also not an explicit target, though it is imported by `approval_workflow.py` through `MYPYPATH`; the local mypy output reported 14 source files, and the targeted command does not establish an explicit whole-repository type-check guarantee for it. The worktree status shows the stream implementation, its tests, mutation script, browser harness, and saved JSON are untracked.
+**Fact:** The CI mypy command does not list `ndjson_stream.py`, so the module remains outside the explicit CI target list. `authority_policy.py` is also not an explicit target, though it is imported by `approval_workflow.py` through `MYPYPATH`; the local mypy output reported 14 source files, and the targeted command does not establish an explicit whole-repository type-check guarantee for it.
 
 **Fact:** Full-suite branch coverage ran with `pytest --cov=authority_policy --cov=approval_workflow --cov-branch --cov-report=term-missing`. The `coverage.py` columns are:
 
@@ -163,97 +165,33 @@ The current `term-missing` output reports locations `25`, `113`, `116`, `149`, `
 
 **Fact:** Three artifacts must be kept distinct: the legacy standalone three-mode run (`browser_results.json`), the clean four-mode standalone run (`browser_results_standalone_compression.json`), and the Electron four-mode run (`browser_results_compression.json`). The legacy run includes `full`, `gzip_full`, and `framed_http`; both four-mode runs add `gzip_framed`. Gzip bodies are precomputed before per-request timing, so delivery timings do not include per-request server compression CPU. `framed_body_bytes` counts NDJSON application-body bytes and excludes HTTP chunk-transfer delimiters ([browser harness](../benchmarks/response-delivery/browser_benchmark.py), [legacy results](../benchmarks/response-delivery/browser_results.json), [clean standalone results](../benchmarks/response-delivery/browser_results_standalone_compression.json), [Electron results](../benchmarks/response-delivery/browser_results_compression.json)).
 
-For the 300 KB cells, the following are saved P50 measurements. First-visible columns are `full / gzip / framed`; completion columns are `gzip / framed`:
-
-| Payload / gzip-body / NDJSON-body bytes (HTTP chunk delimiters excluded) | Pace (MB/s) | First-visible P50 (ms) | Completion P50 (ms) |
-|---|---:|---:|---:|
-| Structured: 300,007 B; gzip 23,735 B; framed 355,158 B | 0.512 | 647.3 / 107.9 / 76.1 | 107.9 / 745.3 |
-| Structured | 2 | 213.8 / 73.6 / 54.1 | 73.6 / 252.8 |
-| Structured | 10 | 90.7 / 63.3 / 51.5 | 63.3 / 177.6 |
-| Structured | 50 | 66.5 / 61.4 / 46.1 | 61.4 / 75.8 |
-| Text-like: 306,891 B; gzip 8,489 B; framed 318,314 B | 0.512 | 646.8 / 65.3 / 74.5 | 65.3 / 667.0 |
-| Text-like | 2 | 200.6 / 52.5 / 52.0 | 52.5 / 208.0 |
-| Text-like | 10 | 78.3 / 48.4 / 45.6 | 48.4 / 85.1 |
-| Text-like | 50 | 54.7 / 48.2 / 45.7 | 48.2 / 54.5 |
+The legacy standalone P50s for the nominal 300 KB cases are preserved in the [browser matrix evidence](../benchmarks/response-delivery/browser-matrix-evidence.md#legacy-standalone-timings).
 
 **Inference:** For structured data, gzip reaches first visibility 11.8-31.8 ms after framing, while at the slowest pace gzip completes 6.9x faster than framed delivery. For text-like data, gzip is 9.2 ms earlier at the slowest rate and 0.5-2.8 ms later at the other rates; at the slowest rate it completes about 10.2x faster than framing. These outcomes make compression a serious candidate when full completion matters, not a universal winner for first visibility.
 
-**Inference:** At 10 MB/s, the structured 300 KB full-to-NDJSON completion penalty is 86.9 ms in the legacy standalone run (177.6 vs 90.7 ms), 89.4 ms in the clean four-mode standalone run (182.1 vs 92.7 ms), and 30.0 ms in Electron (123.5 vs 93.5 ms). The Electron penalty is 54.1 ms smaller than legacy and 59.4 ms smaller than the clean standalone run, despite matching structured payload sizes. The extra 55,151 application bytes in NDJSON account for about 5.5 ms at 10 MB/s; the remaining observed delay is not a universal NDJSON cost. The close legacy/clean standalone results and much smaller Electron penalty indicate runtime-dependent client delivery/parsing behavior in this harness; they do not isolate parsing as the cause. A second browser engine and a parse-once-per-animation-frame variant are needed before attributing the difference to a particular client implementation.
+**Inference:** At 10 MB/s, the structured 300 KB full-to-NDJSON completion penalty is 86.9 ms in the legacy standalone run (177.6 vs 90.7 ms), 89.4 ms in the clean four-mode standalone run (182.1 vs 92.7 ms), and 30.0 ms in Electron (123.5 vs 93.5 ms). The Electron penalty is 56.9 ms smaller than legacy and 59.4 ms smaller than the clean standalone run, despite matching structured payload sizes. The extra 55,151 application bytes in NDJSON account for about 5.5 ms at 10 MB/s; the remaining observed delay is not a universal NDJSON cost. The close legacy/clean standalone results and much smaller Electron penalty indicate runtime-dependent client delivery/parsing behavior in this harness; they do not isolate parsing as the cause. A second browser engine and a parse-once-per-animation-frame variant are needed before attributing the difference to a particular client implementation.
 
-**Follow-up fact:** The four-arm matrix completed in Electron-embedded Chrome and is saved separately in [`browser_results_compression.json`](../benchmarks/response-delivery/browser_results_compression.json). Its 384 request timing records cover full JSON, gzip full JSON, uncompressed NDJSON, and gzip-compressed NDJSON. The table below reports P50 first-visible and completion times for the nominal 300,000-byte target; the byte counts are the actual serialized bodies. Each timing sequence is ordered `full / gzip full / NDJSON / gzip NDJSON`.
-
-| Payload bytes (full / gzip / NDJSON / gzip NDJSON) | Pace (MB/s) | First-visible P50 (ms) | Completion P50 (ms) |
-|---|---:|---:|---:|
-| Structured: 300,007 / 23,735 / 355,158 / 24,636 B | 0.512 | 647.8 / 111.3 / 78.3 / 86.3 | 647.8 / 111.3 / 747.3 / 125.2 |
-| Structured | 2 | 216.2 / 75.4 / 75.2 / 55.7 | 216.2 / 75.4 / 256.8 / 91.4 |
-| Structured | 10 | 93.5 / 75.1 / 47.5 / 48.1 | 93.5 / 75.1 / 123.5 / 76.4 |
-| Structured | 50 | 75.2 / 75.2 / 48.1 / 64.1 | 75.2 / 75.2 / 84.0 / 78.0 |
-| Text-like: 443,577 / 70,898 / 455,000 / 71,302 B | 0.512 | 916.9 / 188.7 / 77.3 / 88.0 | 916.9 / 188.7 / 934.9 / 185.7 |
-| Text-like | 2 | 272.5 / 85.2 / 75.0 / 53.1 | 272.5 / 85.2 / 272.9 / 93.1 |
-| Text-like | 10 | 99.8 / 74.9 / 47.3 / 49.8 | 99.8 / 74.9 / 95.5 / 59.1 |
-| Text-like | 50 | 74.6 / 74.9 / 46.5 / 49.5 | 74.6 / 74.9 / 72.2 / 53.1 |
+**Follow-up fact:** The four-arm Electron matrix contains 384 request timing records. Detailed payload sizes and saved P50 first-visible/completion values for all four modes are in the [browser matrix evidence](../benchmarks/response-delivery/browser-matrix-evidence.md#electron-four-mode-timings).
 
 **Inference:** Gzip NDJSON reaches first-visible content earlier than full-body gzip in all eight displayed cells, by 11.1-100.7 ms (large margins in seven). Completion is close: gzip NDJSON is 1.3-16.0 ms later in five cells and 3.0-21.8 ms earlier in three. Against uncompressed NDJSON, gzip NDJSON is earlier only in the two 2 MB/s cells and later in the other six; the apparent 2 MB/s lead is not treated as a compression benefit because uncompressed NDJSON is anomalously late there. Treat gzip-plus-framing as a measured candidate that is near the best on both metrics, not a universal winner. The Electron Long Task positive control requested 120 ms was not detected; unlike both standalone artifacts, this run supports no Long Task conclusion.
 
-**Follow-up comparison:** For the structured 300,007-byte payload, all three common arms have identical serialized sizes in the legacy standalone and Electron artifacts. Each cell shows legacy standalone / Electron P50 in milliseconds, with the Electron-minus-legacy difference in parentheses.
-
-| Pace (MB/s) | First visible: full | First visible: gzip | First visible: NDJSON | Completion: full | Completion: gzip | Completion: NDJSON |
-|---:|---:|---:|---:|---:|---:|---:|
-| 0.512 | 647.3 / 647.8 (+0.5) | 107.9 / 111.3 (+3.4) | 76.1 / 78.3 (+2.2) | 647.3 / 647.8 (+0.5) | 107.9 / 111.3 (+3.4) | 745.3 / 747.3 (+2.0) |
-| 2 | 213.8 / 216.2 (+2.4) | 73.6 / 75.4 (+1.8) | 54.1 / 75.2 (+21.1) | 213.8 / 216.2 (+2.4) | 73.6 / 75.4 (+1.8) | 252.8 / 256.8 (+4.0) |
-| 10 | 90.7 / 93.5 (+2.8) | 63.3 / 75.1 (+11.8) | 51.5 / 47.5 (-4.0) | 90.7 / 93.5 (+2.8) | 63.3 / 75.1 (+11.8) | 177.6 / 123.5 (-54.1) |
-| 50 | 66.5 / 75.2 (+8.7) | 61.4 / 75.2 (+13.8) | 46.1 / 48.1 (+2.0) | 66.5 / 75.2 (+8.7) | 61.4 / 75.2 (+13.8) | 75.8 / 84.0 (+8.2) |
+**Follow-up comparison:** For the structured 300,007-byte payload, all three common arms have identical serialized sizes in the legacy standalone and Electron artifacts. The complete side-by-side P50 comparison is in the [browser matrix evidence](../benchmarks/response-delivery/browser-matrix-evidence.md#legacy-to-electron-comparison).
 
 At 0.512 MB/s, common-arm results agree within 3.4 ms. At 2 MB/s, the uncompressed NDJSON first-visible result is 21.1 ms later in Electron, while its completion differs by only 4.0 ms. The harness pacing model predicts first-visible near $40 + 16{,}000 / 2{,}000{,}000 \times 1000 + 5 \approx 53$ ms. In the clean standalone run, uncompressed NDJSON is 52.9 ms for both payloads, close to that model; gzip NDJSON is 55.5 ms structured and 59.5 ms text-like. The Electron-only 75.2/75.0 ms deviation is consistent with browser delivery/coalescing effects, but the artifact cannot identify the cause. The apparent Electron gzip-NDJSON lead at 2 MB/s is not reproduced and should not be interpreted as a compression benefit.
 
 **Inference:** In this Electron artifact, full-body gzip sits near 75 ms for the structured 2/10/50 MB/s cells and text-like 10/50 MB/s cells; text-like at 2 MB/s is 85.2 ms. Uncompressed NDJSON is often near 47-48 ms outside the 2 MB/s anomaly. The roughly 27 ms first-visible gap could reflect parsing the full response and constructing/appending the complete list versus rendering only initial records, but it is not isolated here as a UI cost. The clean standalone rerun does not reproduce a universal 75 ms floor, so treat this as runtime-specific; it is directionally consistent with the earlier 18 ms median list-build measurement.
 
-**Fact / comparability limit:** Structured payload bytes match across all three artifacts, so the structured timing comparisons are like-for-like payload comparisons, though browser/runtime differences remain. The clean four-mode standalone and Electron text-like bodies also match at 443,577 B. Only the legacy text-like body is size-mismatched: it is 306,891 B, 44.5% smaller than the matched four-mode body. Its gzip body is 8,489 B (2.8%); the four-mode text-like gzip body is 70,898 B (16.0%). Both legacy and clean standalone artifacts detected their Long Task controls; Electron did not. Do not compare legacy and four-mode text-like timings as controlled payload comparisons.
+**Fact / comparability limit:** Structured payload bytes match across all three artifacts, so the structured timing comparisons are like-for-like payload comparisons, though browser/runtime differences remain. The clean four-mode standalone and Electron text-like bodies also match at 443,577 B. Only the legacy text-like body is size-mismatched: it is 306,891 B, 30.8% smaller than the matched four-mode body; equivalently, the four-mode body is 44.5% larger than legacy. Its gzip body is 8,489 B (2.8%); the four-mode text-like gzip body is 70,898 B (16.0%). Both legacy and clean standalone artifacts detected their Long Task controls; Electron did not. Do not compare legacy and four-mode text-like timings as controlled payload comparisons.
 
 **Fact / provenance limit:** The saved Electron JSON has no embedded run timestamp or harness hash. The clean four-mode standalone artifact records run/save timestamps, harness SHA-256, and process IDs, and confirms the sweep and timings shared a process. Its runner awaits the page promise and refuses to overwrite the saved result. The 100-repetition CPU sweep measures server-side gzip CPU only; browser/client decompression and rendering CPU remain unmeasured.
 
 **Follow-up fact, clean four-mode standalone run:** The new [`browser_results_standalone_compression.json`](../benchmarks/response-delivery/browser_results_standalone_compression.json) was produced by the CDP runner in a fresh Chrome profile. It contains 384 request timing records, the 120 ms Long Task control was detected at 121 ms, the gzip sweep and browser timings share server PID `14644`, and the saved harness SHA-256 (`b9fcc9019f2b099eeb1a0d7e2df6551b274b60ca8b1836d3092ad7363164fce7`) matches the harness file. Its four-mode payload sizes match the Electron artifact. For the common structured 300,007-byte payload, the legacy and clean standalone runs agree within 3.7 ms on first-visible P50 and 4.5 ms on completion P50 across the four rates. The Electron departures therefore appear runtime-specific in this harness, although the mechanism is not isolated.
 
-The following clean four-mode standalone P50s use the same nominal 300,000-byte target and column order `full / gzip full / NDJSON / gzip NDJSON`:
-
-| Payload bytes (full / gzip / NDJSON / gzip NDJSON) | Pace (MB/s) | First-visible P50 (ms) | Completion P50 (ms) |
-|---|---:|---:|---:|
-| Structured: 300,007 / 23,735 / 355,158 / 24,636 B | 0.512 | 648.3 / 110.2 / 76.8 / 79.3 | 648.3 / 110.2 / 745.6 / 150.4 |
-| Structured | 2 | 210.7 / 72.3 / 52.9 / 55.5 | 210.7 / 72.3 / 251.9 / 101.3 |
-| Structured | 10 | 92.7 / 63.3 / 47.8 / 50.8 | 92.7 / 63.3 / 182.1 / 94.8 |
-| Structured | 50 | 67.8 / 63.5 / 47.3 / 50.7 | 67.8 / 63.5 / 76.1 / 101.8 |
-| Text-like: 443,577 / 70,898 / 455,000 / 71,302 B | 0.512 | 917.4 / 189.6 / 75.6 / 78.1 | 917.4 / 189.6 / 937.1 / 185.7 |
-| Text-like | 2 | 272.0 / 84.3 / 52.9 / 59.5 | 272.0 / 84.3 / 272.6 / 84.2 |
-| Text-like | 10 | 93.3 / 54.9 / 55.5 / 46.4 | 93.3 / 54.9 / 91.5 / 58.0 |
-| Text-like | 50 | 57.2 / 49.9 / 52.8 / 48.2 | 57.2 / 49.9 / 60.3 / 54.4 |
+The clean four-mode standalone P50s for the same target and four modes are in the [browser matrix evidence](../benchmarks/response-delivery/browser-matrix-evidence.md#clean-four-mode-standalone-timings).
 
 **Inference:** In the clean four-mode standalone run, gzip NDJSON reaches first visibility 1.7-111.5 ms before full-body gzip in all eight cells. Completion is payload-dependent: for structured data it is 29.0-40.2 ms later than full-body gzip in all four cells; for text-like data it ranges from 3.9 ms earlier to 4.5 ms later. Thus earlier first content does not imply equally early completion. In contrast to Electron, the 2 MB/s uncompressed NDJSON first-visible values fit the pacing model, and gzip NDJSON does not lead that arm.
 
-**Compression-level sweep, clean four-mode standalone:** At the nominal 300 KB target, the saved `compression_sweep` reports these full-body sizes and ratios. The CPU measurement is process CPU per repetition while compressing both the full and framed bodies once, so it is a paired server-side cost, not a per-mode or client cost.
-
-| Payload | Gzip level | Full-body gzip bytes | Full-body ratio | Paired full+framed CPU (ms) |
-|---|---:|---:|---:|---:|
-| Structured | 1 | 40,636 | 13.55% | 1.09 |
-| Structured | 3 | 23,627 | 7.88% | 3.91 |
-| Structured | 6 | 23,735 | 7.91% | 8.28 |
-| Structured | 9 | 28,066 | 9.36% | 20.63 |
-| Text-like | 1 | 118,025 | 26.61% | 2.97 |
-| Text-like | 3 | 79,291 | 17.88% | 9.84 |
-| Text-like | 6 | 70,898 | 15.98% | 17.34 |
-| Text-like | 9 | 70,402 | 15.87% | 31.88 |
-
-The next table compares levels 3/6/9 with level 1 for full-body gzip. Estimated wire time saved is compressed-byte reduction divided by the nominal transfer rate; it excludes compression buffering, network/protocol overhead, browser work, and client decompression. Added CPU is the paired full+framed sweep cost relative to level 1, so this is a directional server-CPU-versus-wire-time comparison, not an end-to-end latency result.
-
-| Payload | Level | Bytes saved vs level 1 | Added paired CPU vs level 1 (ms) | Wire ms saved at 0.512 MB/s | at 2 MB/s | at 10 MB/s | at 50 MB/s |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| Structured | 3 | 17,009 | 2.81 | 33.2 | 8.5 | 1.7 | 0.3 |
-| Structured | 6 | 16,901 | 7.19 | 33.0 | 8.5 | 1.7 | 0.3 |
-| Structured | 9 | 12,570 | 19.53 | 24.6 | 6.3 | 1.3 | 0.3 |
-| Text-like | 3 | 38,734 | 6.88 | 75.7 | 19.4 | 3.9 | 0.8 |
-| Text-like | 6 | 47,127 | 14.38 | 92.0 | 23.6 | 4.7 | 0.9 |
-| Text-like | 9 | 47,623 | 28.91 | 93.0 | 23.8 | 4.8 | 1.0 |
-
-**Inference:** For structured data, level 3 saves 17.0 KB over level 1, while level 6 is 108 B larger and level 9 is larger still; the higher levels add CPU without wire savings over level 3. For text-like data, level 9 saves only 496 B beyond level 6 while adding about 14.53 ms of paired compression CPU. At 0.512 MB/s those final 496 B save about 1.0 ms of nominal wire time; at 50 MB/s they save about 0.01 ms. These synthetic results favor testing level 3 for structured bodies and comparing levels 6/9 for text-like bodies, but do not establish a production setting. Client decompression cost remains unmeasured.
+**Compression-level inference:** Full sizes, paired CPU, wire-time savings, and break-even rates are tabulated in the [browser matrix evidence](../benchmarks/response-delivery/browser-matrix-evidence.md#compression-levels-and-estimated-break-even). Comparing bytes saved with added paired CPU gives conservative break-even rates for levels 3/6/9 versus level 1 of about 6.1/2.4/0.64 MB/s for structured data and 5.6/3.3/1.6 MB/s for text-like data. Below a level's break-even rate, estimated wire savings exceed its added CPU; above it, level 1 has the lower combined CPU-plus-wire estimate. Thus level 1 wins at 10 and 50 MB/s, level 3 wins at 2 MB/s, level 6 is a narrow win only for structured data at 2 MB/s, and level 9 pays off only at 0.512 MB/s in this model. The paired CPU measurement compresses full plus framed bodies, roughly twice full-body-only CPU, so these thresholds are conservative. Client decompression is excluded. If compressed bodies are cached as in the harness, request-path compression CPU vanishes and this break-even comparison does not apply.
 
 **Assumption / limitation:** Across the clean four-mode standalone sweep, full-body gzip ratios range from 7.9-13.6% for structured payloads and 15.9-26.6% for text-like payloads. The legacy text-like payload compresses to 2.8%, while the matched four-mode text-like payload compresses to 16.0%. Representative CRM payload compression, client decompression cost, real client behavior, proxy behavior, end-to-end compression CPU, and production rates are **not found in repo**. Treat these runs as a reason to compare alternatives, not as proof that gzip is best for a customer.
 
@@ -369,6 +307,6 @@ The architecture index already proposes a 30-minute path; this version adds expl
 - `python -m mypy mutation_check.py`: **no issues in 1 source file**.
 - `python mutation_check.py`: authority **36/36 applicable mutants killed** (one not applicable due to changed source), NDJSON **14/14 killed**, approval workflow **15/15 killed**. With both new field tests deselected, the two field-guard mutants survived and 13/15 workflow mutants were killed; same-round tests/mutants, not independent evidence.
 - Full-suite coverage columns (`Stmts`, `Miss`, `Branch`, `BrPart`, `Cover`): authority policy **96, 0, 50, 0, 100%**; approval workflow **231, 41, 76, 20, 80%**.
-- Browser follow-up: legacy three-mode standalone, clean four-mode standalone, and Electron four-mode artifacts are reported separately. The two standalone runs agree within 3.7 ms first-visible and 4.5 ms completion on the common structured payload; Electron's structured 10 MB/s NDJSON completion penalty is 30.0 ms versus 86.9/89.4 ms standalone. The clean run has 384 timing records, a passing 121 ms Long Task control, matching payload sizes, harness SHA-256, and same-process compression sweep; Electron has 384 records but a failed control and incomplete provenance. The compression-level/estimated wire-time table is above; paired server CPU is measured, client decompression is not.
+- Browser follow-up: legacy three-mode standalone, clean four-mode standalone, and Electron four-mode artifacts are reported separately. The two standalone runs agree within 3.7 ms first-visible and 4.5 ms completion on the common structured payload; Electron's structured 10 MB/s NDJSON completion penalty is 30.0 ms versus 86.9/89.4 ms standalone. The clean run has 384 timing records, a passing 121 ms Long Task control, matching payload sizes, harness SHA-256, and same-process compression sweep; Electron has 384 records but a failed control and incomplete provenance. Detailed timing and compression-level tables are in the [browser matrix evidence](../benchmarks/response-delivery/browser-matrix-evidence.md); paired server CPU is measured, client decompression is not.
 - CI reference demo command: completed.
 - Commands ran against the current local worktree, including its uncommitted changes. No customer, cloud, production, or external-trends validation was performed.

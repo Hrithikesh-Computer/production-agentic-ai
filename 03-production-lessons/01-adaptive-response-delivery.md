@@ -1,14 +1,14 @@
-# The Last Mile of LLM Serving: When Response Delivery Becomes the Bottleneck in Agentic AI
+# The Last Mile of LLM Serving: Testing Whether Response Delivery Becomes a Bottleneck in Agentic AI
 
 > Production Engineering • Agentic AI • System Design • LLM Serving
 
 **Reading time:** ~14 minutes
 **Difficulty:** Advanced
 **Category:** Production Engineering
-**Status:** Generalized production investigation.
-**Evidence boundary:** Local measurements are illustrative and not reproducible from this repository; the timings are not production SLA or deployment evidence.
+**Status:** Research note; the reported production investigation is not independently verifiable from this repository.
+**Evidence boundary:** The original production traces and payload corpus remain unavailable. The repository now includes a paced loopback browser experiment, but it is a synthetic workload and does not establish production behavior.
 
-> **Note:** This article abstracts an engineering investigation performed while building a production AI application. Architecture, benchmarks, payload shapes, and implementation details have been generalized to keep the story useful without exposing the original system.
+> **Note:** This article records a reported engineering investigation. Its production observations and generalized measurements cannot be independently verified here; they should be treated as reported claims, not repository evidence.
 
 **Implementation boundary:** The production investigation described here is broader than the executable code in this repository. The Python reference is a bounded slice for wire validation, chunk splitting, authenticated envelopes, and message-scoped retry and fallback behavior.
 
@@ -16,27 +16,18 @@
 
 Most work on LLM serving optimizes inference: GPU scheduling, KV-cache management, batching, speculative decoding, attention kernels. But production systems do not end when the model finishes generating tokens; they end when the user can actually see useful output.
 
-This article investigates a bottleneck that appeared *after* inference had already completed: response delivery. In this system, large structured responses delayed the moment users saw any progress, even when the backend had already produced the content.
+This article examines the hypothesis that response delivery can delay visible progress after inference has completed. The production account describes large structured responses as the trigger, but its supporting traces and experiment artifacts are not included here.
 
 **Key takeaways**
 
-- In this system, the observed latency appeared primarily in response delivery, not model inference.
-- Splitting large payloads improved time-to-first-visible-content without touching inference time.
-- The delivery layer preserved the existing HTTP contract instead of requiring a transport migration.
-- The team favored incremental rollout over a full redesign, given the constraints described below.
+- Large payloads may delay visible progress when the server buffers complete responses and the client waits for complete parsing.
+- Splitting can improve time-to-first-visible-content only if the server flushes useful units and the client can parse and render them incrementally; the checked-in loopback experiment tests this under a generated list-rendering workload.
+- Keeping HTTP does not by itself preserve the application response contract. Incremental delivery requires framing and client behavior that are not specified or implemented in this repository.
+- The proposed delivery-layer approach remains a hypothesis pending an end-to-end experiment.
 
 **What this is not:** a new transport protocol, a replacement for SSE/WebSockets, a universal optimization, or a formal production benchmark — no statistical significance testing is implied by the examples here.
 
-**The evidence, illustrative:** the stage breakdown below is representative of the kind of split observed in this system's proxy benchmark, not a captured production trace.
-
-| Stage | Time |
-|---|---|
-| Model generation | 780 ms |
-| Serialization | 35 ms |
-| Network | 120 ms |
-| Browser parse/render | 1.7 s |
-
-In the representative case shown, generation finished quickly, but the user-visible delay spanned the full delivery and rendering pipeline. This example illustrates the kind of split observed, not a formal production benchmark.
+No stage-level production trace is available in the repository, so this article does not report a numerical latency decomposition.
 
 ## Where This Fits in the LLM Serving Stack
 
@@ -52,9 +43,9 @@ Prior systems in the rows above optimize inference throughput, GPU utilization, 
 
 ## The Production Problem
 
-Requests with large responses felt slower and less reliable than smaller ones, even when the backend had already produced most of the useful content. Two requests sharing the same model, backend path, and dataset could differ primarily in how the response was serialized and delivered.
+The reported problem was that requests with large responses felt slower and less reliable than smaller ones, even when the backend had produced useful content. The account attributes the difference primarily to response serialization and delivery, but neither observation can be checked against repository traces or request data.
 
-The same response was generated two ways: once as a single large payload, once as two smaller parts delivered sequentially. The second form reduced time-to-first-visible-content with zero change to model inference time.
+The reported investigation compared a single payload with sequential parts. The source measurements are unavailable, so the claimed change in time-to-first-visible-content is not independently verified.
 
 ```mermaid
 flowchart LR
@@ -66,9 +57,11 @@ flowchart LR
     BrowserParse --> DOMPaint[DOM Paint]
 ```
 
-**Why browser rendering can become the bottleneck:** browser work does not scale linearly with payload size like network transfer does. After bytes arrive, the browser must parse JSON, allocate objects, mutate the DOM, and paint before the user sees the response.
+**Why browser rendering can become a bottleneck:** depending on the parser and client architecture, JSON parsing, object allocation, DOM updates, and paint can add work after bytes arrive. Incremental parsing, workers, and render strategy can change where that cost lands and must be measured rather than assumed.
 
-### Root cause chain
+### Hypothesized root cause chain
+
+For a synchronous full-body parser, one possible failure chain is:
 
 ```text
 Generation completes
@@ -83,7 +76,7 @@ Entire payload buffered before sending
 Browser receives one large payload
         │
         ▼
-JSON parsing blocks the main thread
+      Synchronous JSON parsing may block the main thread
         │
         ▼
 DOM update delayed until parsing finishes
@@ -92,7 +85,7 @@ DOM update delayed until parsing finishes
 User perceives latency, even though generation finished earlier
 ```
 
-The fix targets the third step — “entire payload buffered before sending” — not generation, not the network, and not the browser's parser itself.
+The proposed intervention targets buffering, but it cannot improve visible latency if the client waits for the complete body or commits UI state only after the full response. Those server and client conditions must be measured together.
 
 ## Latency Decomposition
 
@@ -112,140 +105,121 @@ The instinct is to optimize `Tg`. The metric that governs perceived responsivene
 
 > **Engineering principle:** Before redesigning a production system, decompose end-to-end latency into measurable stages, then optimize the dominant term — not the most visible subsystem.
 
-## Investigation
+## Hypotheses to Test
 
-| Observation | Hypothesis | Result |
-|---|---|---|
-| Backend timing looked ordinary even on the worst-perceived requests | Generation (LLM) is the bottleneck | ❌ Rejected |
-| No meaningful correlation between data-access latency and the symptom | Database is the bottleneck | ❌ Rejected |
-| Explained some cases but not the consistent effect tied to payload shape | Network is the bottleneck | ⚠️ Partial |
-| Splitting a response with no change to total work still improved perceived latency | Delivery semantics are the bottleneck | ✅ Accepted |
+| Hypothesis | Evidence needed to distinguish it |
+|---|---|
+| Model generation dominates perceived delay | Correlated model completion and first-visible timestamps |
+| Data access dominates perceived delay | Data-access spans aligned to the same request trace |
+| Network transfer dominates perceived delay | Byte, flush, and client-receive timestamps under controlled network conditions |
+| Buffering or client parsing dominates perceived delay | Same payload and runtime with incremental server flush, client parse, and render instrumentation |
 
-```mermaid
-flowchart LR
-    D1["Day 1 — Symptom reported, sizes compared"] --> D2["Day 2 — Backend timing ruled ordinary"]
-    D2 --> D4["Day 4 — Split-payload experiment run"]
-    D4 --> W2["Week 2 — Alternatives compared, delivery layer adopted"]
-```
+The local experiment is the only evidence in this repository. No schedule, production-trace sequence, or adoption timeline is implied by these workloads.
 
-More server capacity, compression, or waiting for network improvements target the wrong term in the equation above — they shrink `Tn` or reduce tail variance, but they do not necessarily improve when the user first sees content.
+More server capacity, compression, or network tuning may help some stages, but their effect on first-visible content is workload- and client-dependent. They should be compared rather than dismissed without measurements.
 
-## Controlled Experiments
+## Experiment Protocol and Local Result
 
-**Experiment A — controlled split test.** The same response was generated once as a single payload and once as two sequential parts, holding backend, infrastructure, model, and browser constant.
+The reported production experiments are not reproducible from this repository. The saved standalone run holds the generated payload and list-rendering work constant and varies nominal server pacing. It sweeps generated objects targeting 90 KB and 300 KB at 0.512, 2, 10, and 50 MB/s, with one warmup and five measured runs per mode and cell. The saved standalone artifact contains full-body, gzip-full-body, and uncompressed-framing arms. The server records request receipt, headers completion, scheduled and actual first write, and body completion; the browser records first byte, first visible list content, and full completion, correlated by request ID.
 
-*Illustrative example:* In local testing, a single large payload (250 KB) showed visible content significantly later than the same content split into two smaller parts. This pattern held across multiple iterations.
+Full mode paints only after parsing the entire JSON object and appending all list rows. Framed mode parses and appends complete NDJSON batches as they arrive. “First visible” is measured at the next animation-frame callback: it represents the complete list in full mode and the first received batch in framed mode (typically 161 rows, sometimes 319 when batches arrive together). In headless Chrome, this is a presentation proxy, not a compositor-confirmed paint timestamp.
 
-**Experiment B — payload scaling.**
+The saved standalone HeadlessChrome 154 run used CPython 3.14.6 on Windows 11. At 300 KB, server-observed header-to-first-write medians were 31.98, 8.80, 2.32, and 0.81 ms across the four pacing rates, close to the 16 KB segment targets of 31.25, 8.00, 1.60, and 0.32 ms. First-write schedule lateness stayed below 1 ms, reconciling the earlier sleep-model discrepancy.
 
-*Illustrative representative values (local proxy benchmark, not production measurements):*
+Across the standalone matrix, framed first-visible P50 ranged from 44.9 to 76.7 ms; full-body first-visible ranged from 46.4 to 647.3 ms. At 300 KB and 0.512 MB/s for the structured payload, first-visible was 647.3 ms full versus 76.1 ms framed, while completion was 647.3 versus 745.3 ms because the NDJSON body carries more bytes. At 50 MB/s, that same case measured 66.5 versus 46.1 ms first-visible and 66.5 versus 75.8 ms to complete. These figures match [`browser_results.json`](../benchmarks/response-delivery/browser_results.json). The result depends strongly on imposed transfer rate; it shows the expected availability trade-off and does not establish that the reported production workload was transfer-bound.
 
-| Response size | TTFB | TTLB | Browser parse | Render | Total UX delay |
-|---|---|---|---|---|---|
-| 10 KB | 120 ms | 140 ms | 20 ms | 25 ms | 145 ms |
-| 40 KB | 128 ms | 155 ms | 24 ms | 40 ms | 195 ms |
-| 100 KB | 135 ms | 170 ms | 60 ms | 180 ms | 350 ms |
-| 250 KB | 142 ms | 190 ms | 90 ms | 1.1 s | 1.3 s |
-| *Std deviation (σ), illustrative* | *±8 ms* | *±12 ms* | *±5 ms* | *±15 ms* | *±45 ms* |
+`PerformanceObserver` reported Long Task support. A 120 ms blocking positive control was detected as a 120 ms Long Task. The generated list workload produced zero Long Tasks in both modes, including 3,447 rows. This is a negative finding for long blocking tasks in this specific UI/browser, not a universal claim about browser rendering. Raw client samples, server timestamps, runtime versions, and rates are recorded in [`browser_results.json`](../benchmarks/response-delivery/browser_results.json).
 
-**Experiment C — network degradation.** The same response shapes were replayed over a degraded connection, since the production symptom appeared worse under jitter.
+### Compression and Framing Follow-up
 
-**Experiment D — architecture comparison.** Full-buffer baseline vs. compression, pagination, structured streaming, and the eventual delivery layer.
+A separate four-arm matrix was run in the VS Code Electron-embedded browser and saved as [`browser_results_compression.json`](../benchmarks/response-delivery/browser_results_compression.json). It compares full JSON, gzip full JSON, uncompressed NDJSON, and gzip-compressed NDJSON over two generated payload kinds, two target sizes, and four pacing rates, with one warmup and five measured runs per mode/cell. The result contains 384 correlated server timing records. It is an Electron result, not a replacement for the standalone-Chrome baseline. The browser parser consumed the gzip-framed records and rendered the rows, but the 120 ms Long Task positive control was not detected, so this run does not support Long Task claims.
 
-**Benchmark setup (illustrative, not production):** 20 warmup requests (discarded), 50 measured requests per scenario, median and P95 reported, Chrome 138, HTTP/1.1, local proxy host, 250 KB structured JSON payload.
+At the 300 KB target and 10 MB/s, the measured P50 first-visible / completion times were:
 
-> Important boundary note: the numerical values in Experiment A, Experiment B, and Appendix E are illustrative operating examples, not a formal production benchmark. This repository does not include the original production measurements or reproducible benchmarking harness.
+| Generated payload (serialized bytes) | Full JSON | Gzip full JSON | NDJSON | Gzip NDJSON |
+|---|---:|---:|---:|---:|
+| Structured (300,007 B) | 93.5 / 93.5 ms | 75.1 / 75.1 ms | 47.5 / 123.5 ms | 48.1 / 76.4 ms |
+| Text-like (443,577 B) | 99.8 / 99.8 ms | 74.9 / 74.9 ms | 47.3 / 95.5 ms | 49.8 / 59.1 ms |
+
+The text-like generator overshoots its 300 KB target; its actual serialized size is shown. Across gzip levels 1, 3, 6, and 9, the structured payload's gzip-full ratio ranged from 7.88% to 13.55%, and gzip-NDJSON from 6.91% to 11.99%. The generated text-like payload ranged from 15.87% to 26.61% for gzip-full and 15.57% to 26.65% for gzip-NDJSON. Compression CPU was averaged over 100 process-time repetitions for the precomputed full and framed bodies; it is not per-request compression cost. These payloads remain synthetic and do not constitute a representative CRM compression-ratio corpus.
+
+The gzip-NDJSON arm compresses the complete NDJSON body before request timing, then delivers that gzip stream through chunked HTTP transfer. It tests browser decoding and incremental record parsing, but not streaming compressor flush behavior or per-request compression CPU. The complete rate table and raw samples are in the linked Electron artifact; use it only as exploratory evidence because its Long Task control failed.
 
 ## Production Constraints
 
-Browser-based client on existing HTTP request-response semantics, no assumed migration to WebSockets, backward-compatible API contract, incremental low-risk rollout, full observability. These constraints matter because they push the design toward a boundary change rather than a transport change.
+The reported constraints were a browser client, an HTTP request-response API, and a preference to avoid adopting WebSockets. These constraints are not independently verified. Retaining HTTP is compatible with incremental response bodies, but a versioned application framing format and client-side streaming parser would still be required; compatibility with the existing JSON contract is therefore an open question, not an established property.
 
 ## Alternatives Considered
 
-| Approach | Complexity | UX | Compatibility | Latency improvement | Operational risk |
-|---|---|---|---|---|---|
-| Full response buffering | Low | Low | High | Low | Low |
-| Compression | Low | Medium | High | Medium | Low |
-| Pagination | Medium | Medium | High | Medium | Medium |
-| HTTP streaming | Medium | Medium | Medium | High | Medium |
-| SSE / WebSockets | High | High | Low | High | High |
-| Adaptive response delivery | Medium | High | High | High | Medium |
+| Candidate | Question to measure |
+|---|---|
+| Full response buffering | Baseline first-visible and total completion time |
+| Compression | Whether transfer savings outweigh compression/decompression cost |
+| Pagination | Whether useful partial results can be selected without extra interaction cost |
+| Single-response HTTP body with NDJSON framing | Whether flush and client parse/render behavior move first-visible time earlier |
+| SSE / WebSockets | Whether persistent event semantics justify their compatibility and operational cost |
+| Client-side parsing or rendering changes | Whether browser work, rather than delivery, is the dominant stage |
 
-**Why not streaming?** The existing product shared a request-response contract across multiple clients. Full streaming support would have meant protocol changes across frontend, gateway, and API layers, which was a larger operational change than the bottleneck justified.
+An incrementally delivered HTTP response body is HTTP streaming. The design selected for this article's experiment is one ordered response body containing newline-delimited JSON records. The server flushes records; the browser consumes them through a readable stream and parses/renders incrementally. This differs from SSE's event-stream contract and WebSockets' persistent, bidirectional message channel, although all are streaming approaches. The experiment supports this framing candidate only under the synthetic conditions above.
 
-**Why not token streaming?** Token streaming exposes model output as tokens are generated, which helps conversational UX but does not address reconstruction of a large, nested, non-text payload. The delivery problem here was boundary latency, not streaming a text generation stream.
+Token streaming addresses a different stage when model generation is still in progress. It does not by itself solve delivery of an already-generated structured payload, and an incremental structured-response design still needs explicit framing and client semantics.
 
 ## Architecture Decision Record
 
 ```text
 Decision:
-  Introduce a response delivery layer between the response builder
-  and the HTTP response writer.
+  Use one NDJSON-framed HTTP response as the candidate for progressive
+  delivery in this investigation; do not add per-record retry envelopes.
 
 Status:
-  Accepted
+  Experiment design selected; production architecture not validated
 
 Context:
   Large structured payloads delayed first visible content, independent
   of model inference time.
 
 Alternatives considered:
-  Compression, Pagination, HTTP streaming, SSE, WebSockets
+  Full JSON body, NDJSON-framed response body, SSE, WebSockets
 
-Rejected because:
-  Each either failed to move first-visible-content earlier (compression,
-  more server capacity) or required more transport/protocol change than
-  the bottleneck justified (streaming, SSE, WebSockets).
+Not established:
+  The repository's loopback comparison covers only generated list records
+  over paced HTTP; it does not compare production alternatives or prove
+  that this protocol wins for a real workload.
 
-Accepted because:
-  Preserves the existing HTTP contract, deploys at a single boundary,
-  and measurably improves perceived latency with a bounded rollout risk.
+Proposed because:
+  A paced browser experiment directly compared first-visible and full
+  completion time for the same records rendered as one body or batches.
 
 Consequences:
-  + Faster time to first visible content
-  + Small, boundary-scoped deployment
-  - Client-side reconstruction logic required
-  - Additional delivery-layer failure modes to manage
+  + Progressive parsing and rendering within one ordered HTTP response
+  - Framed representation is larger and full completion can be slower
+  - A failed response requires retrying the request; no per-record retry
+  - Client streaming parser and partial-state handling are required
 ```
 
 ## Delivery Layer Design
 
 ```
-if payload is small:      return it normally
-if payload is large:      split into structured chunks
-if response is UI/tool-heavy: expose partial content earlier
-if payload has nested objects or long text: favor chunk boundaries that preserve semantic coherence
-if the client can't safely reassemble state: fall back to the full-buffer path
+serialize each list item as one JSON object followed by a newline
+write complete records incrementally to one HTTP response body
+parse complete records as they arrive
+append records to the list and expose partial completion state
+if the response fails: discard incomplete state and retry the whole request
 ```
 
-**Threshold justification:** the initial threshold was chosen empirically by plotting payload size against browser render time in local testing. Render cost stayed relatively flat below about 100–120 KB, then rose sharply as the payload grew beyond that range.
+No payload-size threshold is selected. The rate sweep shows that the first-visibility trade-off changes with transfer rate and body size; these results are not sufficient to derive a production threshold.
 
-## Chunk Boundary Algorithm
+## Record Framing
 
-Boundary strategies are tried in priority order, falling through to the next only when the current strategy cannot produce chunks under the size limit:
+The selected candidate uses one newline-delimited JSON object per application record. Newlines inside JSON strings are escaped by JSON serialization, so the record delimiter remains unambiguous. This is an ordered single-response stream, not a set of independently retransmittable fragments.
 
-```text
-for strategy in [json_boundary, tool_boundary, heading, paragraph, sentence]:
-    chunks = strategy(payload)
-    if chunks satisfy threshold:
-        return chunks
-return fixed_size(payload)
-```
+HTTP/TCP preserves byte order and detects transport loss within a connection. If the response terminates before completion, the client discards partial state and retries the whole request; the design does not add per-record CRC/HMAC fields, duplicate handling, sequence reordering, or missing-record retries. Those are different requirements and need a different protocol.
 
-The reference implementation (`chunker.py`) demonstrates the JSON-boundary and fixed-size-fallback strategies, and it additionally respects top-level `tool_calls` boundaries when a large tool array must be split without breaking individual tool records. The heading, paragraph, sentence, and citation-block strategies are not implemented in this local slice.
-
-| Component | Complexity |
-| --- | --- |
-| Splitting | O(n) |
-| Reassembly | O(n) |
-| Ordering by sequence index | O(1) lookup per chunk, O(k) to assemble the final ordered result |
-| Memory | O(payload size) |
-
-(`n` = payload size in bytes, `k` = chunk count.)
+No server/client NDJSON adapter is included in the reference implementation. The standalone browser harness is the only executable example of this selected framing candidate.
 
 ## Architecture
 
-The following architecture and sequence diagrams describe the production design discussed by the article. The repository's smaller, actual Python sequence is shown in `diagrams/adaptive-response-delivery/`.
+The following diagrams show the selected experiment candidate, not an implemented deployment. The files under `diagrams/adaptive-response-delivery/` document the separate authenticated-envelope reference protocol, not this NDJSON stream.
 
 **Before:**
 
@@ -254,7 +228,7 @@ flowchart LR
     LLM --> Serializer1[Serializer]
     Serializer1 --> HTTP1[HTTP — full buffer]
     HTTP1 --> Browser1[Browser]
-    Browser1 --> Render1["Render (blocked until fully parsed)"]
+    Browser1 --> Render1["Parse full JSON and render full list"]
 ```
 
 **After:**
@@ -263,16 +237,15 @@ flowchart LR
 flowchart LR
     LLM --> Builder[Response Builder]
     Builder --> Serializer
-    Serializer --> Policy[Delivery Policy]
-    Policy --> Writer[Chunk Writer]
+    Serializer --> Framer[NDJSON Framer]
+    Framer --> Writer[Ordered HTTP Body]
     Writer --> Gateway
     Gateway --> Browser
-    Browser --> Render2[Incremental Rendering]
-    Metrics[Metrics / Tracing] -.-> Policy
+    Browser --> Parser[Incremental Record Parser]
+    Parser --> Render2[Append Records Progressively]
+    Metrics[Metrics / Tracing] -.-> Framer
     Metrics -.-> Writer
 ```
-
-The backend logic that produces the response is unchanged in both diagrams — only the boundary between the response builder and the browser changed.
 
 ```mermaid
 sequenceDiagram
@@ -280,73 +253,65 @@ sequenceDiagram
     participant G as Gateway
     participant Bk as Backend
     participant R as Response Builder
-    participant D as Delivery Layer
+    participant D as NDJSON Framer
 
     B->>G: Request
     G->>Bk: Prompt
     Bk->>R: Produce response
-    R->>D: Serialized payload
-    D->>B: Chunk 1
-    D->>B: Chunk 2
-    D->>B: Final chunk
-    B->>B: Reassemble and render
+    R->>D: Structured response records
+    D->>G: Ordered NDJSON body
+    G->>B: HTTP response bytes as available
+    B->>B: Parse complete records
+    B->>B: Append first batch, then later batches
+    B->>G: Retry whole request if response fails
 ```
-
-Additional diagrams (client state machine, trace timeline, rollout stages) are in the appendices to keep the main article to one architecture diagram and one sequence diagram.
 
 ### Reference implementation
 
-The checked-in implementation lives in `04-reference-implementation/adaptive-response-filter/`. `policy.py` applies byte thresholds, `chunker.py` splits top-level JSON object members or valid UTF-8 boundaries, and `reassembler.py` validates and reconstructs fragments.
+  The browser-tested NDJSON candidate has no production adapter or separate reference client/server implementation; the harness is its only executable example. The package under `04-reference-implementation/adaptive-response-filter/` is a different, separately tested protocol exercise: it buffers before yielding authenticated envelopes and models message-scoped reassembly/retry. It is not the implementation of the selected single-response design and is not evidence for its browser results.
 
-The local sequence serializes the whole response before it yields envelopes. The reference slice includes HMAC-SHA256 authentication on each `WireEnvelope`, message-scoped `ReassemblySession` retry/fallback logic, and a `ReassemblySessionManager` that routes interleaved fragments by `message_id`. It still does not emulate a full browser, network transport, or production gateway.
-
-The contract is intentionally educational. CRC32 detects accidental corruption, and HMAC-SHA256 authenticates the chunk fields and payload for a caller-supplied shared key. Retries, network timeouts, partial UI state, transport framing, key provisioning, and multi-endpoint security policy belong to a larger production system, not this local reference slice.
+  For this single ordered HTTP body, TCP provides byte ordering and transport retransmission. If the response ends early, the client discards incomplete list state and retries the whole request. Per-record CRC/HMAC fields, sequence reordering, duplicate suppression, missing-record retry, and a message manager are not part of this selected design. The existing envelope package remains an alternative protocol example, not a dependency of this article's architecture.
 
 ### Design principles
 
-- Don't change the transport.
-- Don't require client changes beyond opting into the chunked contract.
-- Preserve the existing API contract.
-- Keep the rollout reversible at every stage.
-- Measure before optimizing, and keep measuring after.
+- Use one ordered HTTP response body with explicit NDJSON record framing.
+- Require an opt-in/versioned response contract and an incremental client parser.
+- Render records progressively; discard partial state and retry the whole request on failure.
+- Keep any eventual rollout reversible and instrumented.
+- Measure first byte, first rendered batch, full completion, and client errors.
 
 ## Observability
 
 ```text
-payload_size, chunk_count, avg_chunk_size, serialization_ms
-TTFB, TTLB, p50_first_visible, p95_first_visible, reassembly_ms
-json_parse_ms, render_block_ms, main_thread_block_ms, paint_ms
-chunk_retries, reassembly_failures, duplicate_chunks, out_of_order_chunks, fallback_rate
+payload_bytes, framed_body_bytes, nominal_pacing_rate, request_id
+server_request_received, response_headers_complete, server_first_write_target
+server_first_write_actual, client_first_byte, client_first_rendered_batch
+client_full_render_complete, response_complete, client_retry_count
+longtask_supported, longtask_count, longtask_duration, positive_control_detected
 ```
 
-The frontend-side metrics (`json_parse_ms`, `render_block_ms`, `main_thread_block_ms`, `paint_ms`) matter as much as the backend ones — they're what actually confirmed the browser-rendering bottleneck.
+The harness records these timestamps for each correlated request and reports `PerformanceObserver` Long Tasks only when support is confirmed by a deliberate 120 ms positive control. In the recorded standalone run, the control was detected at 120 ms and the generated list workload had zero Long Tasks. The animation-frame boundary is a rendering proxy, not a physical-display paint measurement.
 
-## Representative Impact
+## Current Evidence
 
-*The following values are from local proxy benchmarks to illustrate the kind of improvement observed. They are not production measurements and should not be reproduced without similar controlled benchmarking.*
-
-| Approach | First visible (P50) | First visible (P95) | TTLB | Browser render |
-|---|---|---|---|---|
-| Full buffering | ~2.4 s | ~3.1 s | ~2.8 s | ~1.1 s |
-| Adaptive response delivery | ~480 ms | ~720 ms | ~2.9 s | ~320 ms |
-
-The key observation is that chunking moves time-to-first-visible-content much earlier without increasing total transfer time. Recovery metrics (chunk retransmission, fallback rates) are tracked in the same telemetry stream.
+The repository has a paced loopback rate sweep with server/client timestamp pairs. It demonstrates earlier first-batch availability at lower transfer rates in this generated list workload, while full completion remains slower for the larger NDJSON representation. Building and appending a 3,447-row list produced no Long Task over 50 ms, even though the positive control detected a deliberate 120 ms block. Thus this simple UI does not reproduce a long blocking render; it does not rule out expensive rendering in a richer production UI. The separate Python envelope benchmark concerns an unselected alternative protocol. See [the evidence map](../EVIDENCE.md) for exact claim boundaries.
 
 ## Trade-offs and Limitations
 
-Faster first visible content, but more delivery-layer complexity and a partial-completion contract the client must honor. Limited value when responses are already small, generation dominates late-stage latency, or the client cannot reassemble partial state safely.
+The paced loopback test observed earlier first-batch visibility for framed HTTP at lower rates, but later full completion because framing increased body size. At the highest rate, first-visible differences narrowed and remained within one or two animation frames. In this generated UI, full-body JSON parsing and rendering completed without a Long Task; the production account's much larger render cost is not reproduced here.
 
-**Threats to validity:** single production architecture, one browser, one transport version. Results may differ under HTTP/2 or HTTP/3, other browsers or mobile clients, high packet loss, or GPU scheduling differences.
+**Threats to validity:** the browser experiment uses standalone Chrome, a generated list, loopback HTTP/1.1, server-side bandwidth pacing, and a small sample count. It does not model a real network path, production payloads, other browsers, or a customer UI. No external-validity claim follows from this experiment.
 
 **When not to use this:**
 
-- Responses are already small — the threshold logic just adds overhead for no benefit.
+- The client cannot consume framed records or discard incomplete state safely.
 - SSE or WebSockets are already available and the client already handles them.
 - Payloads are mostly binary rather than structured JSON/text.
 - Inference genuinely dominates end-to-end latency, so delivery isn't the bottleneck to begin with.
-- Clients can't safely buffer and reassemble partial state.
 
-## Rollout Strategy
+## Proposed Rollout Strategy
+
+The percentages below are illustrative rollout stages, not a record of an executed deployment.
 
 ```mermaid
 flowchart LR
@@ -356,7 +321,7 @@ flowchart LR
     Observe2 --> Full["Full rollout — 100%"]
 ```
 
-At each stage: P50/P95 first-visible-content, client error rate, fallback rate, and duplicate/out-of-order chunk rate were checked before expanding further.
+At each proposed stage, record first-byte, first-rendered-batch, full completion, client error rate, and whole-request retry rate before expanding. This rollout was not reproduced in the repository.
 
 ## Related Work
 
@@ -372,115 +337,19 @@ vLLM, Sarathi-Serve, Orca, and FlashAttention optimize inference throughput, GPU
 
 ## Future Work
 
-- Adaptive chunk sizing based on payload shape
-- Incremental JSON parsing on the client
-- HTTP/3 evaluation
+- Compare paced transfer rates with representative production network traces.
+- Add browser tracing to separate parsing, DOM work, and paint cost.
+- Evaluate whether whole-request retry is acceptable for the target payload and product contract.
 
 ## Engineering Lessons
 
-- Production bottlenecks are often outside the component initially blamed.
-- Perceived latency often matters more than total latency.
+- Production bottlenecks can sit outside the component initially blamed; traces are needed to identify them.
+- Perceived latency can matter more than total latency, but should be measured at the client-visible boundary.
 - Delivery contracts deserve the same design attention as generation algorithms.
 
-Modern LLM serving research has dramatically improved how quickly models generate tokens. Production systems, however, are judged by something different: how quickly users perceive progress. Between generation completion and visible output sits a delivery layer that can dominate the user experience.
+Modern LLM serving research has improved token generation. Whether delivery dominates a particular user experience depends on the payload, server flush behavior, client parser, and render strategy; the available repository evidence does not answer that question.
 
-## Appendix A — Example Payload
-
-```json
-{
-  "plan": { "steps": ["retrieve", "summarize", "cite"] },
-  "tool_output": { "result": "..." },
-  "citations": [{ "source": "doc-1", "span": [0, 120] }],
-  "metadata": { "model": "example", "latency_ms": 812 }
-}
-```
-
-## Appendix B — Chunk Metadata
-
-```json
-{
-  "sequence": 0,
-  "total_chunks": 3,
-  "checksum": "9a3f1c02",
-  "is_final": false,
-  "merge_mode": "concat",
-  "message_id": "response-42",
-  "auth_tag": "9ac3d92f5f0f3a1117e7b5e7f1e4c0d3f37956d4c7d0d0c0b71e1d41f6fa2c3",
-  "payload": "..."
-}
-```
-
-The checksum value is an illustrative CRC32-shaped example. The repository's `WireEnvelope` computes the actual CRC32 over each UTF-8 payload fragment, and each envelope also carries a 64-character HMAC-SHA256 `auth_tag` over the chunk metadata and payload. CRC32 detects accidental corruption; HMAC verifies authenticity for a shared secret key.
-
-Appendix C — Reassembly Algorithm
-
-1. Create one `Reassembler` per message, and optionally route interleaved messages through a `ReassemblySessionManager` keyed by `message_id`.
-2. Validate envelope types, positive `total_chunks`, the sequence range, `is_final`, merge mode, checksum format, HMAC authentication tag, and configured chunk/payload bounds.
-3. Fix the expected `total_chunks`, `message_id`, and merge mode from the first accepted frame; reject later frames that change those values.
-4. Verify the CRC32 before storing payload, then verify the HMAC-SHA256 with a caller-supplied shared key.
-5. An identical duplicate is ignored while the message is incomplete; a duplicate sequence with different content is rejected.
-6. Wait until all sequence indexes are present, then either concatenate `concat` fragments as bytes or parse and merge `json-object` fragments by top-level key.
-7. If the message stalls, a `ReassemblySession` can request missing chunk indexes and eventually invoke a full-buffer fallback callback after the configured retry limit is exhausted.
-
-See `04-reference-implementation/adaptive-response-filter/reassembler.py` for the runnable receiver and `envelope.py` for the authenticated wire contract.
-
-## Appendix D — Session-State Model and Failure Modes
-
-The following state machine describes the local session model that exists in the Python reference slice: a message-scoped buffer can request missing chunks, retry within a timeout window, and fall back to a full-buffer callback when the retry budget is exhausted.
-
-```mermaid
-stateDiagram-v2
-    [*] --> Waiting
-    Waiting --> Receiving: chunk arrives
-    Receiving --> Receiving: more chunks arrive
-    Receiving --> Complete: total_chunks reached
-    Receiving --> Timeout: no chunk within timeout
-  Timeout --> Retry: request missing chunks
-    Retry --> Receiving
-  Retry --> Fallback: retry budget exhausted
-  Fallback --> Complete: full-buffer callback returns payload
-    Complete --> Render
-    Render --> [*]
-```
-
-| Failure | Symptom | Handling |
-|---|---|---|
-| Missing chunk | Reassembly never completes | Timeout → request missing chunks → retry budget → full-buffer fallback |
-| Duplicate chunk | Reassembly could double-apply | Idempotent merge keyed by sequence |
-| Late chunk | UI appears to "jump" | Buffer until in-order, don't render out of sequence |
-| Interrupted stream | Client stuck in partial state | Fallback to full-buffer re-request after timeout |
-
-## Appendix E — Benchmark Detail and Trace
-
-```text
-Warmup requests:     20 (discarded)
-Measured requests:   50
-Reported statistics: median (P50), P95
-Machine:              local proxy host, no external network hop
-Browser:              Chrome 138
-Transport:            HTTP/1.1
-Payload:              250 KB structured JSON
-```
-
-Representative first-visible-content distribution, full buffering vs. adaptive delivery (from local benchmark):
-
-```text
-Full buffering        (median ~2.4s)   ■■■■■■■■■■■■
-Adaptive delivery      (median ~480ms) ■■■
-```
-
-Representative trace shape for a chunked response (illustrative, not a production trace):
-
-```text
-span: request                         [0ms -------------------- 2900ms]
-  span: serialization                 [0ms -- 40ms]
-  span: delivery.chunk[0]             [40ms - 480ms]   <- first visible content
-  span: delivery.chunk[1]             [480ms - 1600ms]
-  span: delivery.chunk[2]             [1600ms - 2900ms]
-  span: browser.render (per chunk)    [overlaps each chunk span]
-```
-
-## References
+## Further Reading
 
 **Academic**
 
@@ -503,5 +372,5 @@ span: request                         [0ms -------------------- 2900ms]
 - [Ray Serve](https://docs.ray.io/en/latest/serve/index.html) — serving infrastructure.
 - [BentoML](https://docs.bentoml.com/) — serving infrastructure.
 - [NVIDIA Triton Inference Server](https://docs.nvidia.com/deeplearning/triton-inference-server/index.html) — serving infrastructure.
-- SGLang — serving infrastructure. <!-- TODO: verify URL -->
+- [SGLang documentation](https://docs.sglang.io/) — high-performance serving framework for language and multimodal models.
 - [Chrome DevTools Performance documentation](https://developer.chrome.com/docs/devtools/performance/) — browser parse/render timing.
