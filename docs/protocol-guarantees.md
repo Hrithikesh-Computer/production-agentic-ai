@@ -38,6 +38,10 @@ expiry is lazy and runs on the next manager intake. Active sessions share a
 total payload-byte cap of 268,435,456 bytes (256 MiB). Each `Reassembler`
 accepts at most 10,000 chunks and 16,000,000 payload bytes.
 
+`ReassemblySessionManager` is not thread-safe. Concurrent calls for the same
+message ID can silently lose a chunk; callers sharing one manager across
+threads must serialize access.
+
 These limits bound tracked protocol state, not all transient Python allocations
 or process memory. A sender that can authenticate requests and abandons
 incomplete sessions can hold session and byte capacity until the 300-second

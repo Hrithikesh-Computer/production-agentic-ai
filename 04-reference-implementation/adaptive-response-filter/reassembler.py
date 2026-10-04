@@ -220,7 +220,12 @@ class ReassemblySession:
 
 @dataclass
 class ReassemblySessionManager:
-    """Route interleaved chunks to independent message-scoped sessions."""
+    """Route interleaved chunks to independent message-scoped sessions.
+
+    This manager is not thread-safe. Concurrent calls for the same message ID
+    can silently lose a chunk; callers sharing one manager across threads must
+    serialize access.
+    """
 
     authentication_key: bytes = field(repr=False)
     request_retry: Callable[[str, list[int]], None]

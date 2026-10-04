@@ -1,3 +1,6 @@
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
+
 import pytest
 from envelope import WireEnvelope
 from policy import DeliveryPolicy
@@ -67,6 +70,34 @@ def test_manager_keeps_two_in_flight_messages_separate():
     assert manager.add_chunk(_chunk("response-b", 1, 2, b"2")) == b"B2"
     assert manager.sessions == {}
     assert set(manager.tombstones) == {"response-a", "response-b"}
+
+
+def test_manager_concurrent_first_chunks_can_lose_one_chunk(monkeypatch):
+    manager = ReassemblySessionManager(
+        authentication_key=AUTH_KEY,
+        request_retry=lambda _message_id, _missing: None,
+        request_full_buffer=lambda _message_id: b"fallback",
+    )
+    both_sessions_created = Barrier(2)
+    original_post_init = ReassemblySession.__post_init__
+
+    def synchronized_post_init(session):
+        original_post_init(session)
+        both_sessions_created.wait(timeout=5)
+
+    monkeypatch.setattr(ReassemblySession, "__post_init__", synchronized_post_init)
+    chunks = (
+        _chunk("racing", 0, 2, b"first"),
+        _chunk("racing", 1, 2, b"second"),
+    )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(manager.add_chunk, chunks))
+
+    assert results == [None, None]
+    retained = manager.sessions["racing"].reassembler.received
+    assert len(retained) == 1
+    assert next(iter(retained.values())) in {b"first", b"second"}
 
 
 def test_manager_rejects_late_chunk_for_completed_message():
