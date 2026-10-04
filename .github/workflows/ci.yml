@@ -2,20 +2,23 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
   pull_request:
     branches: [ main ]
 
 jobs:
   validate:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.14']
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
           cache: 'pip'
 
       - name: Install Dependencies
@@ -28,6 +31,12 @@ jobs:
 
       - name: Run tests
         run: python -m pytest -q
+
+      - name: Check Markdown links
+        run: python scripts/check_markdown_links.py
+
+      - name: Check response-delivery evidence figures
+        run: python scripts/check_response_delivery_evidence.py
 
       - name: Type check with mypy
         env:

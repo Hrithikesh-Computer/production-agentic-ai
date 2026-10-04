@@ -7,7 +7,7 @@
 
 ## Summary
 
-**Fact:** The repository has matured from a handbook plus reference slices into a handbook with a proposed CRM architecture bundle and a deterministic in-memory approval simulation. The architecture labels its services as proposed; the workflow tests demonstrate useful serial-path behavior. The first-inspection working tree reported 118 tests. After review edits, the suite reported 127 tests. A clean checkout of `a1a71c8` initially had a duplicate-module whole-repository mypy failure; commit `ae9150c` removes that collision. Clean checks of `ae9150c`, `c5237f4`, `23367a3`, and `2de763f` pass 127 tests, Ruff, and whole-repository mypy on 25 files. Isolated Python 3.10.20 checks at `23367a3` and `2de763f` also pass 127 tests, Ruff, and whole-repository mypy. The workspace interpreter is Python 3.14.6; CI configures Python 3.10.
+**Fact:** The repository has matured from a handbook plus reference slices into a handbook with a proposed CRM architecture bundle and a deterministic in-memory approval simulation. The architecture labels its services as proposed; the workflow tests demonstrate useful serial-path behavior. The first-inspection working tree reported 118 tests. After review edits, the suite reported 127 tests. A clean checkout of `a1a71c8` initially had a duplicate-module whole-repository mypy failure; commit `ae9150c` removes that collision. CI now tests Python 3.10 and 3.14, runs whole-repository mypy, and checks local links plus cited benchmark figures. The workspace interpreter is Python 3.14.6.
 
 **Inference:** The work demonstrates competent architecture decomposition and evidence discipline, but not a customer-ready solution architecture. The largest remaining gap is proof at real identity, CRM, persistence, concurrency, and operations boundaries. The approval simulation's tested sequential flow should not be read as an atomic or authenticated workflow.
 
@@ -30,124 +30,23 @@ The prior pass's handbook scores are being compared under the same handbook-fit 
 
 **Top next actions**
 
-1. Extend CI from the current Python 3.10 job to a version matrix, and add NDJSON coverage plus workflow mutation/concurrency checks. Add fresh mutants or an independent mutation-testing run; the current custom mutants were developed alongside the tests. Whole-repository mypy is now included in CI.
+1. Add NDJSON coverage and approval-workflow mutation/concurrency checks to CI. Add fresh mutants or an independent mutation-testing run; the current custom mutants were developed alongside the tests. The Python 3.10/3.14 matrix, whole-repository mypy, and documentation/evidence guards are in CI.
 2. Fix approval identity binding, atomic state consumption, audit-failure recovery, and bounded state; add concurrency and audit-sink-failure tests.
 3. Rerun the four-arm matrix on representative CRM payloads and named target clients, including a second browser engine and a parse-once-per-animation-frame variant; retain the harness-hash comparison, then select a customer-pilot metric and baseline before revisiting ADR-001.
 
 ## Changes made during this review
 
-Findings above describe the workspace as first inspected unless explicitly marked as a follow-up measurement. The review changed the following files; final counts and follow-up measurements therefore include review-created tests and harness changes.
+The review adds the CRM architecture/evidence corrections, separates synthetic browser measurements from customer claims, and records the remaining approval and operational gaps. The changed-file ledger and chronological validation record are in the [review evidence log](review-evidence-2026-10-04.md).
 
-- [`docs/repo-evaluation-v2.md`](repo-evaluation-v2.md): corrected coverage and mutation records, completion-cost attribution, and review-change provenance.
-- [`.gitignore`](../.gitignore): retained the `docs/` ignore rule while allowing this report to be tracked.
-- [`architecture/02-decisions/ADR-001-response-delivery.md`](../architecture/02-decisions/ADR-001-response-delivery.md): reopened the decision and added gzip and gzip-plus-NDJSON options.
-- [`mutation_check.py`](../mutation_check.py), [`tests/test_authority_referral.py`](../tests/test_authority_referral.py), and [`prototypes/crm_operational_copilot/test_approval_workflow.py`](../prototypes/crm_operational_copilot/test_approval_workflow.py): added equal-priority referral, connector binding/version, replay, audit-order, proposal-field, and connector-field mutation coverage with direct negative tests.
-- [`benchmarks/response-delivery/browser_benchmark.py`](../benchmarks/response-delivery/browser_benchmark.py): added gzip-framed delivery and gzip-level/resulting-ratio measurements, plus timestamp, harness-hash, and process provenance for future saved runs.
-- [`benchmarks/response-delivery/run_standalone_cdp.mjs`](../benchmarks/response-delivery/run_standalone_cdp.mjs) and [`benchmarks/response-delivery/browser_results_standalone_compression.json`](../benchmarks/response-delivery/browser_results_standalone_compression.json): added a fresh-profile CDP runner that awaits the benchmark promise and saved a clean standalone four-arm run with a passing Long Task control.
-- [`benchmarks/response-delivery/browser_results_compression.json`](../benchmarks/response-delivery/browser_results_compression.json): generated the four-mode Electron run; it is separate from the earlier standalone-Chrome result.
-- [`benchmarks/response-delivery/browser-matrix-evidence.md`](../benchmarks/response-delivery/browser-matrix-evidence.md): holds the detailed timing, compression, and break-even tables moved out of this evaluation.
-- [`04-reference-implementation/ndjson_stream.py`](../04-reference-implementation/ndjson_stream.py), its tests, [`mutation_check.py`](../mutation_check.py), and the focused workflow/referral tests: committed with the evidence bundle.
-- [`03-production-lessons/01-adaptive-response-delivery.md`](../03-production-lessons/01-adaptive-response-delivery.md), [`benchmarks/response-delivery/README.md`](../benchmarks/response-delivery/README.md), [`benchmarks/response-delivery/benchmark.py`](../benchmarks/response-delivery/benchmark.py), and [`benchmarks/response-delivery/results.csv`](../benchmarks/response-delivery/results.csv): reconciled local benchmark methods, measurements, and evidence boundaries.
-- [`01-agent-architecture/01-agent-authority-and-intent.md`](../01-agent-architecture/01-agent-authority-and-intent.md), [`02-context-and-memory/01-beyond-token-windows.md`](../02-context-and-memory/01-beyond-token-windows.md), [`CONTEXT-LIFECYCLE-DECISION.md`](../CONTEXT-LIFECYCLE-DECISION.md), [`EVIDENCE.md`](../EVIDENCE.md), [`README.md`](../README.md), [`REPO-MAP.md`](../REPO-MAP.md), [`ROADMAP.md`](../ROADMAP.md), and [`benchmarks/README.md`](../benchmarks/README.md): reconciled repository scope, evidence boundaries, archived material, and references to removed benchmarks.
-- Follow-up work across commits `00d7b51` through the final review commit: corrected stale run labels/counts and compression analysis, moved detailed tables to [`browser-matrix-evidence.md`](../benchmarks/response-delivery/browser-matrix-evidence.md), reconciled repository documentation, added whole-repository mypy to CI, and validated clean checkouts including Python 3.10.20.
+## Evidence Status
 
-## 1. Verify Before Judging
+The first-inspection suite had 118 tests; after review additions it had 127. The final tagged checkout passes the full suite, Ruff, whole-repository mypy, and both evidence guards under CPython 3.10.20. Hosted Ubuntu CI is still required. Detailed per-commit results, import provenance, link audit, benchmark README/CSV comparison, mutation scope, and the first-inspection snapshot are in the [review evidence log](review-evidence-2026-10-04.md).
 
-### Checks and CI comparison
+## Historical Snapshot
 
-**Fact, first-inspection working tree:** Commands below were run in the selected workspace venv using its Python executable. Ruff, tests, and both mypy invocations passed there. The additional demo command listed by CI also completed. Validation of the later clean `a1a71c8` commit is recorded separately below.
+The first-inspection Git status, commit history, prior-action table, citation spot-checks, mutation details, and branch-coverage output are preserved in the [review evidence log](review-evidence-2026-10-04.md). These are historical evidence, not statements about the final committed tree.
 
-| Check | Local command/result | CI configuration/result difference |
-|---|---|---|
-| Tests | First inspection: **118 passed**; after review edits: **127 passed** | Clean detached `a1a71c8`, `ae9150c`, `c5237f4`, and `23367a3`: `python -m pytest -q`, **127 passed** each; isolated CPython 3.10.20 at `23367a3`: **127 passed**. |
-| Ruff | First-inspection working tree: **all checks passed** | Clean detached `a1a71c8`, `ae9150c`, and `c5237f4`: `python -m ruff check .`, **all checks passed** each. |
-| Mypy, CI scope | First-inspection Windows equivalent: **no issues in 14 source files** | Clean detached `a1a71c8`: **no issues in 14 source files** with the existing targeted command. CI now runs this targeted check plus `python -m mypy .` ([workflow](../.github/workflows/ci.yml)). |
-| Mypy, whole repo | First-inspection working tree: `python -m mypy .`, **no issues in 25 source files** | Clean detached `a1a71c8`: duplicate module `benchmark`; clean detached `ae9150c`, `c5237f4`, and `23367a3`: **no issues in 25 source files**. Isolated CPython 3.10.20 at `23367a3`: **no issues in 25 source files**. |
-| Demo | `python 04-reference-implementation/adaptive-response-filter/demo.py`; completed | CI runs this after lint, tests, and mypy ([workflow](../.github/workflows/ci.yml)). |
-
-CI uses Ubuntu and Python 3.10; the workspace venv is Windows/Python 3.14.6. A clean `23367a3` checkout was tested with isolated CPython 3.10.20 using `uv --no-project`; tests, Ruff, and whole-repository mypy passed there. This does not substitute for the Ubuntu CI runner. CI installs `.[dev]`; the local 3.10 run used isolated pytest, Ruff, and mypy tools. See [CI workflow](../.github/workflows/ci.yml).
-
-### Committed versus uncommitted (first-inspection snapshot)
-
-**Fact, as first inspected:** `git status --short -- architecture prototypes/crm_operational_copilot` returned no entries. At that snapshot, the architecture bundle and approval workflow were committed at then-`HEAD` (`5c4afbf`); the history included `59aaabe` (proposed CRM architecture), `513ab5f` (route referrals through CRM approval), `2732f1b` (cost/discovery artifacts), and `5c4afbf` (architecture review guide).
-
-`git log -10 --oneline` at first inspection returned:
-
-```text
-5c4afbf docs: add architecture review guide
-28d8903 docs: refresh repository evaluation
-2732f1b docs: add CRM discovery and cost artifacts
-4b5a69e ci: include CRM workflow tests and type checks
-513ab5f feat: route authority referrals through CRM approval
-59aaabe docs: add proposed CRM architecture bundle
-4832ee3 code cleanup
-d6cb57b code cleanup
-7ea2769 Update the EMR architecture article to remove repo-absence language and retain architecture-first framing.
-1ea619e Apply requested documentation fixes and reference updates.
-```
-
-**Follow-up commit history (chronological):**
-
-1. `00d7b51` — added the evaluation report, its ignore exception, and ADR-001 updates.
-2. `a1a71c8` — published browser evidence, harness/runner, and supporting implementation/tests.
-3. `0de0c92` — corrected compression-level optima and sensitivity analysis.
-4. `ae9150c` — retired colliding benchmark fixtures and refreshed response-delivery timings; whole-repository mypy then passed.
-5. `c5237f4` — archived legacy design and security documents.
-6. `23367a3` — reconciled README, EVIDENCE, REPO-MAP, ROADMAP, research notes, and this report.
-7. `2de763f` — added whole-repository mypy to CI.
-
-The cleanup commits were separately tested in clean worktrees. `a1a71c8` was the only tested commit in this sequence with the duplicate-module mypy error, before `ae9150c` removed the collision.
-
-**Fact, first-inspection worktree:** The overall worktree was not clean. Unstaged modifications: `01-agent-architecture/01-agent-authority-and-intent.md`, `02-context-and-memory/01-beyond-token-windows.md`, `03-production-lessons/01-adaptive-response-delivery.md`, `CONTEXT-LIFECYCLE-DECISION.md`, `EVIDENCE.md`, `README.md`, `REPO-MAP.md`, `ROADMAP.md`, `benchmarks/README.md`, `benchmarks/response-delivery/README.md`, `benchmarks/response-delivery/benchmark.py`, and `benchmarks/response-delivery/results.csv`. Staged deletions: `benchmarks/authority-conformance/README.md` and `benchmarks/context-lifecycle/README.md`. Staged renames: the EMR design note into `archive/design-sketches-2026/`, three `SECURITY-*.md` files into `archive/review-artifacts-2026/security-mappings/`, and the authority conformance test into `tests/test_authority_policy.py` (the renamed test was also modified in the worktree). The context benchmark had a staged rename to `test_policy_fixture.py` plus an unstaged deletion. Untracked at that snapshot: `04-reference-implementation/ndjson_stream.py`, `benchmarks/response-delivery/browser_benchmark.py`, `benchmarks/response-delivery/browser_results.json`, `mutation_check.py`, `tests/test_ndjson_guards.py`, and `tests/test_ndjson_stream.py`. Source: `git status --short`.
-
-### Previous report: top ten actions
-
-| # | Status | Evidence and assessment |
-|---:|---|---|
-| 1 | **DONE** | README explicitly says this is not a production platform/runtime ([README](../README.md)); architecture and CRM evidence also distinguish target design from local behavior. |
-| 2 | **OPEN** | `ReassemblySessionManager` still stores sessions in a dictionary; inspection of the class shows no cleanup/eviction method. Approval workflow `_records` also has no bound or cleanup ([reassembler](../04-reference-implementation/adaptive-response-filter/reassembler.py), [workflow](../prototypes/crm_operational_copilot/approval_workflow.py)). |
-| 3 | **PARTIAL** | The clean four-mode standalone HeadlessChrome run now provides a matched synthetic comparison with a passing Long Task control and recorded provenance. The Electron four-mode artifact has matching payload sizes but a failed Long Task control and incomplete provenance. Representative CRM payloads, target-client contract, and an integrated path remain absent; rerun on those clients and payloads ([ADR-001](../architecture/02-decisions/ADR-001-response-delivery.md), [reference boundary](../04-reference-implementation/README.md)). |
-| 4 | **PARTIAL** | ADR-002 explicitly rejects portable signed approval as the default and calls out key lifecycle review; there is still no production key provisioning, rotation, transport, identity, or replay implementation ([ADR-002](../architecture/02-decisions/ADR-002-approval-signing.md), [envelope evidence](../04-reference-implementation/adaptive-response-filter/EVIDENCE.md)). |
-| 5 | **OPEN** | Browser results remain synthetic/loopback; representative customers, clients, network paths, and baseline are not found in repo ([browser benchmark README](../benchmarks/response-delivery/README.md)). |
-| 6 | **OPEN** | Existing tests are example-based; property-based/fuzz coverage for chunking, reassembly, and malformed streams is not found in repo ([chunker tests](../04-reference-implementation/adaptive-response-filter/test_chunker.py), [reassembly tests](../04-reference-implementation/adaptive-response-filter/test_reassembler.py)). |
-| 7 | **OPEN** | Context note still says no representative multi-turn workload or runnable context manager exists ([context note](../02-context-and-memory/01-beyond-token-windows.md)). |
-| 8 | **PARTIAL** | Local workflow records a referral reason and reviewer, but there is no policy/rule provenance, evidence reference, or reviewer UI ([workflow](../prototypes/crm_operational_copilot/approval_workflow.py), [workflow tests](../prototypes/crm_operational_copilot/test_approval_workflow.py)). |
-| 9 | **OPEN** | CI remains Python 3.10 only and targeted for mypy; a version matrix and full-repo CI type check are not found ([CI workflow](../.github/workflows/ci.yml)). |
-| 10 | **OPEN** | A dated external trends appendix and primary-source comparison are not found. Current industry practice is **unverified** in this review. |
-
-### Ten citation spot-checks in v1
-
-| Citation checked | Result |
-|---|---|
-| `README.md#L16` | **Correct.** The cited line states the repository is not a production platform/framework/runtime. |
-| `04-reference-implementation/README.md#L5` | **Correct.** It describes the reference as a bounded teaching slice without a model runtime, HTTP/network application, auth, or deployment. |
-| `.github/workflows/ci.yml#L18` for the claim that CI sets `MYPYPATH` | **Wrong anchor.** Line 18 is the Python 3.10 setting. The `MYPYPATH` value and mypy targets are in the type-check step ([workflow](../.github/workflows/ci.yml)). |
-| `02-context-and-memory/01-beyond-token-windows.md#L8` | **Correct.** It identifies the note as a hypothesis and says no local benchmark or runnable context manager exists. |
-| `01-agent-architecture/01-agent-authority-and-intent.md#L9` | **Correct.** It says semantic alignment has no defined algorithm, metric, or enforcement point. |
-| `03-production-lessons/01-adaptive-response-delivery.md#L9` | **Correct.** It says production traces/payloads are unavailable and the browser experiment is synthetic. |
-| `reassembler.py#L213` | **Partial.** The line proves a manager-owned sessions dictionary; the absence of eviction is established by inspection of the whole class, not that line alone. |
-| `metrics.py#L36` | **Correct.** The function signature defaults the metrics sink to `print`. |
-| `authority_policy.py#L37` for equal-priority deny behavior | **Wrong anchor.** Line 37 is the `evaluate_authority` declaration. The priority/tie handling is later in that function ([authority policy](../04-reference-implementation/authority_policy.py)). |
-| `benchmarks/response-delivery/README.md#L17` for the synthetic benchmark caveat | **Weak anchor.** It points to the “What it does not measure” heading; the actual caveat is in the following paragraph ([benchmark README](../benchmarks/response-delivery/README.md)). |
-
-### Test and mutation evidence scope
-
-**Fact:** The custom [`mutation_check.py`](../mutation_check.py) uses temporary copies to mutate `authority_policy.py`, `ndjson_stream.py`, and `approval_workflow.py`; workflow mutants run both the authority test directory and the focused workflow suite. The initial run killed 36/36 applicable authority mutants, 14/14 NDJSON mutants, and 13/13 initial workflow mutants; one authority mutant was not applicable because its source pattern had changed. After adding two field-guard tests, the workflow set grew to 15 mutants: with both tests deselected, 13/15 were killed and both allowlist mutants survived; with the tests present, 15/15 were killed. The suite grew from 121 to 127 tests in the same round, so this is sensitivity evidence, not independent mutation evidence. CI has no mutation-testing or coverage step ([CI workflow](../.github/workflows/ci.yml)).
-
-**Follow-up fact:** The first fresh mutant used a non-specific source match and removed the connector's duplicate allowlist guard, not `submit_update`'s check. The re-anchored proposal mutant and a separately anchored connector mutant were run with both new field-guard tests deselected: 13/15 workflow mutants were killed, and both field-guard mutants survived. With `test_proposal_rejects_disallowed_field` and `test_connector_rejects_disallowed_approved_field` present, both corresponding mutants were killed and the full workflow set was 15/15. The results remain same-round evidence, not independent tool-generated mutation evidence.
-
-**Fact:** The CI mypy command does not list `ndjson_stream.py`, so the module remains outside the explicit CI target list. `authority_policy.py` is also not an explicit target, though it is imported by `approval_workflow.py` through `MYPYPATH`; the local mypy output reported 14 source files, and the targeted command does not establish an explicit whole-repository type-check guarantee for it.
-
-**Fact:** Full-suite branch coverage ran with `pytest --cov=authority_policy --cov=approval_workflow --cov-branch --cov-report=term-missing`. The `coverage.py` columns are:
-
-| File | Stmts | Miss | Branch | BrPart | Cover |
-|---|---:|---:|---:|---:|---:|
-| `authority_policy.py` | 96 | 0 | 50 | 0 | 100% |
-| `approval_workflow.py` | 231 | 41 | 76 | 20 | 80% |
-
-The current `term-missing` output reports locations `25`, `113`, `116`, `149`, `154`, `159`, `168`, `176`, `179`, `196`, `207`, `270-277`, `315`, `317`, `325`, `327`, `342->350`, `364`, `366-370`, `451-470`, `482-483`, `487-514`, and `529`; `342->350` is a partial-branch arc. These include validation and lookup errors, referral-denial branches, connector exception handling, and the CLI demonstration. Audit-sink failure recovery and crash recovery remain design gaps, not merely unexecuted branches. **Inference:** The selected mutants confirm sensitivity for the covered approval, referral, binding, expiry, replay, audit-order, and version-check behaviors, but do not establish concurrency, production identity, or durable transaction guarantees.
-
-## 2. Architecture Bundle Review
+## 1. Architecture Bundle Review
 
 ### Overview and traceability
 
@@ -237,7 +136,7 @@ The worksheet's daily-volume figures assume the peak rate persists for all 24 ho
 
 **Fact:** Proposed status is explicit in the overview, C4 descriptions, threat model, AWS candidate, and bundle index. The AWS document says the mapping is not IaC or evidence of deployed services ([overview](../architecture/00-solution-overview.md), [AWS view](../architecture/06-deployment-views.md), [architecture index](../architecture/README.md)). **Inference:** The proposed/existing distinction is consistently honest; the main residual risk is readers overlooking it when viewing diagrams alone.
 
-## 3. Approval Workflow Review
+## 2. Approval Workflow Review
 
 ### Behavioral claims and tests
 
@@ -263,7 +162,7 @@ The evidence and tests are in [workflow source](../prototypes/crm_operational_co
 - **API boundary:** `issue_ticket` returns a ticket only for `allow`; it propagates `deny` and `refer`, and `use_ticket` re-evaluates current authority and propagates a new `refer`. The CRM workflow does not call the ticket API: it uses its own proposal binding, expiry, status, and human-review checks. Treat tickets as a separate reference example, not as the workflow's authorization contract; mutation checks now exercise both paths independently ([authority policy](../04-reference-implementation/authority_policy.py), [referral tests](../tests/test_authority_referral.py), [workflow](../prototypes/crm_operational_copilot/approval_workflow.py)).
 - **Complexity:** proposal/status lookup is expected $O(1)$ by dictionary key; authority evaluation scans applicable rules, $O(R)$; record updates are constant-time for the fixed mock shape. Retained workflow memory is $O(P)$ proposals plus whatever the audit sink retains. Correctness risk is dominated by non-atomic state transitions, not algorithmic complexity.
 
-## 4. Re-Scoring
+## 3. Re-Scoring
 
 **Scoring rubric:** Handbook fit asks how well this serves the stated research-handbook purpose (clarity, inspectability, reproducibility, and honest scope), not product readiness. Portfolio design quality rates the quality and completeness of architecture artifacts. Portfolio evidence strength rates validation: local tested examples are meaningful but do not equal customer or production validation. Scores are not capped; design quality and evidence maturity are not collapsed into one number. For handbook fit and design, 1 means absent or misleading, 2 fragmented, 3 coherent but with major gaps, 4 strong and traceable within scope with bounded gaps, and 5 independently reviewed and validated end to end. For evidence, 1 means claims are largely unsupported, 2 means local examples/tests, 3 means repeatable local measurements and broad tests, 4 means representative external/pilot validation, and 5 means repeated production outcomes. A 3-to-4 change should mean the move from major gaps to strong, traceable work, not a small numeric improvement.
 
@@ -278,9 +177,9 @@ The evidence and tests are in [workflow source](../prototypes/crm_operational_co
 | Mathematics | 4 | 4 | 3 | 3 | 3 | 3 | Sizing and local tests remain useful but browser data drift and no property/concurrency tests limit confidence; reconcile data and add representative property/concurrency tests. |
 | Philosophy/Psychology | 3 | 4 | 2 | 3 | 2 | 2 | Referral/approval and privacy trade-offs are more concrete; test reviewer comprehension and workload with realistic cases. |
 
-**Inference:** Under a consistent handbook-fit rubric, the new architecture bundle raises portfolio design quality in Solution Architecture, Presales, Forward Deployed, and Philosophy/Psychology without increasing customer-evidence scores. The local approval simulation is evidence of tested local behavior, not authenticated or deployed workflow evidence. Trends remain low because current industry practice is unverified.
+**Inference:** Under a consistent handbook-fit rubric, the new architecture bundle raises portfolio design quality in Solution Architect, Presales, Forward Deployed, and Philosophy/Psychology without increasing customer-evidence scores. The local approval simulation is evidence of tested local behavior, not authenticated or deployed workflow evidence. Trends remain low because current industry practice is unverified.
 
-## 5. Remaining Architect-Portfolio Gaps, by Value
+## 4. Remaining Architect-Portfolio Gaps, by Value
 
 1. **Real deployment and customer contact/validation:** highest value. The AWS view is candidate mapping, not IaC or deployment; named customer contacts, pilot results, and customer validation are **not found in repo**. A bounded non-production pilot would test whether the design survives real identity, CRM, network, and audit boundaries.
 2. **Runbook and operational ownership:** an operational runbook, incident procedure, on-call owner, deployment/rollback checklist, and recovery exercise are **not found in repo**. The deployment view lists failure behaviors but does not operationalize them.
@@ -288,7 +187,7 @@ The evidence and tests are in [workflow source](../prototypes/crm_operational_co
 4. **Risk register:** STRIDE analysis exists, but a maintained register with likelihood, impact, treatment, owner component, due date, residual-risk acceptance, and test status is **not found in repo**.
 5. **Discovery record:** a 20-question questionnaire exists ([discovery questionnaire](../architecture/09-discovery-questionnaire.md)); completed customer answers, evidence sources, decision owners, and agreed acceptance thresholds are not found in repo.
 
-## 6. A 30-Minute Reviewer Path
+## 5. A 30-Minute Reviewer Path
 
 The architecture index already proposes a 30-minute path; this version adds explicit time boxes and evidence checks ([architecture README](../architecture/README.md)).
 
@@ -300,7 +199,7 @@ The architecture index already proposes a 30-minute path; this version adds expl
 6. **23-28 min:** Read [approval workflow](../prototypes/crm_operational_copilot/approval_workflow.py) and [focused tests](../prototypes/crm_operational_copilot/test_approval_workflow.py). Run the focused tests, then identify caller-supplied identity, state bounds, concurrency, and audit failure gaps.
 7. **28-30 min:** Read [CRM evidence](../prototypes/crm_operational_copilot/EVIDENCE.md) and the [discovery questionnaire](../architecture/09-discovery-questionnaire.md). List what must be validated with a customer before calling this deployable.
 
-## 7. Open Questions
+## 6. Open Questions
 
 1. Which single CRM workflow and customer environment should anchor a real pilot, and who is the customer-side decision/contact owner?
 2. What identity-to-scope and reviewer role model must be enforced, including two-person approval and step-up requirements?
@@ -312,17 +211,6 @@ The architecture index already proposes a 30-minute path; this version adds expl
 8. Which dated standards and primary sources should define the trends review? Current external practice is **unverified** here.
 9. Who owns the architecture decisions, risk acceptances, CI matrix, and ongoing evidence updates?
 
-## Verification Record
+## Final State
 
-- Clean detached worktree at `a1a71c8`: `python -m pytest -q` **127 passed**; `python -m ruff check .` **all checks passed**; CI-scoped mypy with the Windows `MYPYPATH` equivalent **no issues in 14 source files**.
-- The clean `a1a71c8` whole-repository `python -m mypy .` check failed because two benchmark scripts mapped to the same top-level module name, `benchmark`. Commit `ae9150c` removed that collision; clean detached checks at `ae9150c`, `c5237f4`, `23367a3`, and `2de763f` pass whole-repository mypy with no issues in 25 files.
-- `python -m mypy mutation_check.py`: **no issues in 1 source file**.
-- A preliminary import check using the shared editable venv was not isolated: pytest collection resolved `authority_policy` and `ndjson_stream` from the primary checkout. The corrected check used `uv --no-project` at clean `23367a3` with `PYTHONPATH` unset; pytest collection loaded `authority_policy`, `ndjson_stream`, and `approval_workflow` from files inside the detached checkout.
-- `python mutation_check.py`: authority **36/36 applicable mutants killed** (one not applicable due to changed source), NDJSON **14/14 killed**, approval workflow **15/15 killed**. With both new field tests deselected, the two field-guard mutants survived and 13/15 workflow mutants were killed; same-round tests/mutants, not independent evidence.
-- Full-suite coverage columns (`Stmts`, `Miss`, `Branch`, `BrPart`, `Cover`): authority policy **96, 0, 50, 0, 100%**; approval workflow **231, 41, 76, 20, 80%**.
-- Browser follow-up: legacy three-mode standalone, clean four-mode standalone, and Electron four-mode artifacts are reported separately. The two standalone runs agree within 3.7 ms first-visible and 4.5 ms completion on the common structured payload; Electron's structured 10 MB/s NDJSON completion penalty is 30.0 ms versus 86.9/89.4 ms standalone. The clean run has 384 timing records, a passing 121 ms Long Task control, matching payload sizes, harness SHA-256, and same-process compression sweep; Electron has 384 records but a failed control and incomplete provenance. Detailed timing and compression-level tables are in the [browser matrix evidence](../benchmarks/response-delivery/browser-matrix-evidence.md); paired server CPU is measured, client decompression is not.
-- Clean detached worktrees at `ae9150c`, `c5237f4`, `23367a3`, and `2de763f`: full tests **127 passed**, Ruff **all checks passed**, and `python -m mypy .` **no issues in 25 source files**. Isolated CPython 3.10.20 at `23367a3` and `2de763f`: **127 tests passed**, Ruff passed, and mypy reported no issues in 25 files.
-- Commit-by-commit link audit (tracked Markdown links, excluding code examples and allowing directory targets): `a1a71c8` and `0de0c92` each had five broken links (archive targets not yet tracked and missing archive README files); `ae9150c` had seven (also two links to removed benchmark directories); `c5237f4` had seven (also stale EMR paths after archive moves); `23367a3` had three, including nonexistent archive README targets. This final correction points REPO-MAP to tracked archive directories; the final tracked-link check reports zero broken links.
-- Benchmark README/CSV check: `a1a71c8` and `0de0c92` had the median/max prose but the older CSV schema, so those figures were not verifiable from that artifact. At `ae9150c`, `c5237f4`, and `23367a3`, the 300 KB CSV values round to the README's 1.69/2.92 ms full build, 22.70/28.77 ms chunked build, and 5.87/8.27 ms reassembly.
-- CI reference demo command: completed.
-- Final review changes are committed and the primary worktree is clean. No customer, cloud, production, or external-trends validation was performed.
+The final tagged tree passed 127 tests, Ruff, whole-repository mypy, both evidence-consistency guards, and tracked Markdown link validation under isolated CPython 3.10.20. The detailed per-commit results, link/CSV audits, import provenance, mutation and coverage data, and browser provenance are in the [review evidence log](review-evidence-2026-10-04.md). Hosted Ubuntu CI is pending. Customer/cloud/production validation, representative CRM payloads, client decompression cost, independent mutation evidence, concurrency tests, and a second browser engine remain open.
