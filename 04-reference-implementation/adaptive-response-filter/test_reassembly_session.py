@@ -97,3 +97,17 @@ def test_session_rejects_chunk_for_another_message():
         assert "message_id" in str(error)
     else:
         raise AssertionError("session accepted a chunk for another message")
+
+
+def test_session_rejects_empty_message_id():
+    try:
+        ReassemblySession(
+            message_id="",
+            authentication_key=AUTH_KEY,
+            request_retry=lambda _message_id, _missing: None,
+            request_full_buffer=lambda _message_id: b"fallback",
+        )
+    except ValueError as error:
+        assert "message_id must be non-empty" in str(error)
+    else:
+        raise AssertionError("session accepted an empty message_id")

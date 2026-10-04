@@ -89,6 +89,24 @@ def test_reassembler_rejects_authentication_key_shorter_than_16_bytes():
         Reassembler(authentication_key=b"x" * 15)
 
 
+@pytest.mark.parametrize(
+    ("options", "error", "message"),
+    [
+        ({"max_chunks": True}, TypeError, "max_chunks must be an integer"),
+        ({"max_chunks": 0}, ValueError, "max_chunks must be positive"),
+        (
+            {"max_payload_bytes": "large"},
+            TypeError,
+            "max_payload_bytes must be an integer",
+        ),
+        ({"max_payload_bytes": 0}, ValueError, "max_payload_bytes must be positive"),
+    ],
+)
+def test_reassembler_rejects_invalid_resource_limits(options, error, message):
+    with pytest.raises(error, match=message):
+        Reassembler(authentication_key=AUTH_KEY, **options)
+
+
 def test_missing_reports_correctly():
     reassembler = Reassembler(authentication_key=AUTH_KEY)
     reassembler.add_chunk(_to_envelope(0, 3, b'{"a": 1}', False))
