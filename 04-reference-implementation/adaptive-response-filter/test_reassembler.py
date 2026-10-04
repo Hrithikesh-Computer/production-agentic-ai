@@ -266,12 +266,12 @@ def test_rejects_malformed_json_object_fragment():
     with pytest.raises(ValueError, match="invalid JSON object fragment"):
         Reassembler(authentication_key=AUTH_KEY).add_chunk(malformed)
 
-    def test_delivery_policy_rejects_invalid_limits():
-        with pytest.raises(ValueError, match="max_chunk_bytes"):
-            DeliveryPolicy(max_chunk_bytes=0)
+def test_delivery_policy_rejects_invalid_limits():
+    with pytest.raises(ValueError, match="max_chunk_bytes"):
+        DeliveryPolicy(max_chunk_bytes=0)
 
-    def test_delivery_policy_rejects_invalid_recovery_limits():
-        with pytest.raises(ValueError, match="timeout_seconds"):
-            DeliveryPolicy(timeout_seconds=0)
-        with pytest.raises(ValueError, match="max_retries"):
-            DeliveryPolicy(max_retries=-1)
+def test_delivery_policy_rejects_invalid_recovery_limits():
+    with pytest.raises(ValueError, match="timeout_seconds"):
+        DeliveryPolicy(timeout_seconds=0)
+    with pytest.raises(ValueError, match="max_retries"):
+        DeliveryPolicy(max_retries=-1)
