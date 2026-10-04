@@ -83,6 +83,18 @@ def test_manager_preserves_partial_session_after_bad_chunk_and_accepts_retry():
     assert manager.add_chunk(_chunk("response-retry", 1, 2, b"new")) == b"old-new"
 
 
+def test_manager_accepts_existing_session_when_at_capacity():
+    manager = ReassemblySessionManager(
+        authentication_key=AUTH_KEY,
+        request_retry=lambda _message_id, _missing: None,
+        request_full_buffer=lambda _message_id: b"fallback",
+        max_sessions=1,
+    )
+
+    assert manager.add_chunk(_chunk("active", 0, 2, b"part-")) is None
+    assert manager.add_chunk(_chunk("active", 1, 2, b"done")) == b"part-done"
+
+
 def test_session_rejects_chunk_for_another_message():
     session = ReassemblySession(
         message_id="expected",

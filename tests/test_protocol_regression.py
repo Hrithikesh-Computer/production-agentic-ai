@@ -62,7 +62,6 @@ def test_bad_tag_leaves_no_session_in_manager():
 
 
 # R2: add and enforce max_sessions before admitting a cap+1 distinct message.
-@pytest.mark.xfail(strict=True, reason="needs lifecycle work / protocol decision")
 def test_manager_rejects_sessions_beyond_cap():
     parameters = inspect.signature(ReassemblySessionManager).parameters
     assert "max_sessions" in parameters, (

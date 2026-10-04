@@ -212,17 +212,42 @@ class ReassemblySessionManager:
     authentication_key: bytes = field(repr=False)
     request_retry: Callable[[str, list[int]], None]
     request_full_buffer: Callable[[str], bytes]
+    max_sessions: int = 1024
     policy: DeliveryPolicy = field(default_factory=DeliveryPolicy)
     clock: Callable[[], float] = time.monotonic
     sessions: dict[str, ReassemblySession] = field(default_factory=dict, init=False)
+
+    def __post_init__(self) -> None:
+        if isinstance(self.max_sessions, bool) or not isinstance(
+            self.max_sessions, int
+        ):
+            raise TypeError("max_sessions must be an integer")
+        if self.max_sessions <= 0:
+            raise ValueError("max_sessions must be positive")
+
+    def _evict_expired_sessions(self, now: float) -> None:
+        expired = [
+            message_id
+            for message_id, session in self.sessions.items()
+            if not session.reassembler.completed and now >= session._deadline
+        ]
+        for message_id in expired:
+            self.sessions.pop(message_id, None)
 
     def add_chunk(self, chunk: WireEnvelope | Mapping[str, object]) -> bytes | None:
         envelope = chunk
         if not isinstance(envelope, WireEnvelope):
             envelope = WireEnvelope.from_mapping(envelope)
+        now = self.clock()
         session = self.sessions.get(envelope.message_id)
         created = session is None
         if session is None:
+            if len(self.sessions) >= self.max_sessions:
+                self._evict_expired_sessions(now)
+            if len(self.sessions) >= self.max_sessions:
+                raise ValueError(
+                    f"maximum reassembly sessions reached ({self.max_sessions})"
+                )
             session = ReassemblySession(
                 message_id=envelope.message_id,
                 authentication_key=self.authentication_key,
