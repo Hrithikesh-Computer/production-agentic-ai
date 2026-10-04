@@ -1,3 +1,4 @@
+import pytest
 from envelope import WireEnvelope
 from policy import DeliveryPolicy
 from reassembler import ReassemblySession, ReassemblySessionManager
@@ -14,6 +15,13 @@ def _chunk(message_id, sequence, total, payload):
         message_id=message_id,
         authentication_key=AUTH_KEY,
         merge_mode="concat",
+    )
+
+
+def _held_payload_bytes(manager):
+    return sum(
+        session.reassembler._received_bytes
+        for session in manager.sessions.values()
     )
 
 
@@ -245,3 +253,120 @@ def test_session_rejects_empty_message_id():
         assert "message_id must be non-empty" in str(error)
     else:
         raise AssertionError("session accepted an empty message_id")
+
+
+def test_total_byte_cap_rejection_leaves_manager_state_unchanged():
+    manager = ReassemblySessionManager(
+        authentication_key=AUTH_KEY,
+        request_retry=lambda _message_id, _missing: None,
+        request_full_buffer=lambda _message_id: b"fallback",
+        max_total_bytes=5,
+        clock=lambda: 0.0,
+    )
+    assert manager.add_chunk(_chunk("held", 0, 2, b"1234")) is None
+    sessions_before = {
+        message_id: session.reassembler.received.copy()
+        for message_id, session in manager.sessions.items()
+    }
+    activity_before = manager._session_activity.copy()
+    tombstones_before = manager.tombstones.copy()
+
+    with pytest.raises(ValueError, match="total active payload bytes"):
+        manager.add_chunk(_chunk("over", 0, 2, b"xy"))
+
+    assert _held_payload_bytes(manager) == 4
+    assert {
+        message_id: session.reassembler.received.copy()
+        for message_id, session in manager.sessions.items()
+    } == sessions_before
+    assert manager._session_activity == activity_before
+    assert manager.tombstones == tombstones_before
+
+
+def test_total_byte_cap_retries_same_chunk_after_expiry_frees_bytes():
+    now = [0.0]
+    manager = ReassemblySessionManager(
+        authentication_key=AUTH_KEY,
+        request_retry=lambda _message_id, _missing: None,
+        request_full_buffer=lambda _message_id: b"fallback",
+        max_total_bytes=5,
+        session_ttl_seconds=2.0,
+        clock=lambda: now[0],
+    )
+    assert manager.add_chunk(_chunk("held", 0, 2, b"1234")) is None
+    candidate = _chunk("candidate", 0, 2, b"xy")
+
+    with pytest.raises(ValueError, match="total active payload bytes"):
+        manager.add_chunk(candidate)
+    assert _held_payload_bytes(manager) == 4
+
+    now[0] = 2.0
+    assert manager.add_chunk(candidate) is None
+    assert set(manager.sessions) == {"candidate"}
+    assert _held_payload_bytes(manager) == 2
+
+
+def test_identical_duplicate_near_total_byte_cap_does_not_count_twice():
+    manager = ReassemblySessionManager(
+        authentication_key=AUTH_KEY,
+        request_retry=lambda _message_id, _missing: None,
+        request_full_buffer=lambda _message_id: b"fallback",
+        max_total_bytes=2,
+        clock=lambda: 0.0,
+    )
+    chunk = _chunk("duplicate", 0, 2, b"xy")
+
+    assert manager.add_chunk(chunk) is None
+    assert _held_payload_bytes(manager) == 2
+    assert manager.add_chunk(chunk) is None
+    assert _held_payload_bytes(manager) == 2
+
+
+def test_completion_releases_bytes_for_another_message():
+    manager = ReassemblySessionManager(
+        authentication_key=AUTH_KEY,
+        request_retry=lambda _message_id, _missing: None,
+        request_full_buffer=lambda _message_id: b"fallback",
+        max_total_bytes=4,
+        clock=lambda: 0.0,
+    )
+
+    assert manager.add_chunk(_chunk("complete", 0, 2, b"ab")) is None
+    assert _held_payload_bytes(manager) == 2
+    assert manager.add_chunk(_chunk("complete", 1, 2, b"cd")) == b"abcd"
+    assert manager.sessions == {}
+    assert _held_payload_bytes(manager) == 0
+    assert manager.add_chunk(_chunk("next", 0, 1, b"1234")) == b"1234"
+    assert _held_payload_bytes(manager) == 0
+
+
+def test_bad_tag_does_not_change_total_payload_bytes():
+    manager = ReassemblySessionManager(
+        authentication_key=AUTH_KEY,
+        request_retry=lambda _message_id, _missing: None,
+        request_full_buffer=lambda _message_id: b"fallback",
+        max_total_bytes=3,
+        clock=lambda: 0.0,
+    )
+    assert manager.add_chunk(_chunk("valid", 0, 2, b"ab")) is None
+    before = manager._session_activity.copy()
+    bad = _chunk("bad", 0, 2, b"xxxx").to_dict()
+    bad["auth_tag"] = "0" * 64
+
+    with pytest.raises(ValueError, match="authentication failed"):
+        manager.add_chunk(bad)
+
+    assert _held_payload_bytes(manager) == 2
+    assert set(manager.sessions) == {"valid"}
+    assert manager._session_activity == before
+
+
+@pytest.mark.parametrize("limit", [0, -1])
+def test_manager_rejects_nonpositive_total_byte_cap(limit):
+    with pytest.raises(ValueError, match="max_total_bytes must be positive"):
+        ReassemblySessionManager(
+            authentication_key=AUTH_KEY,
+            request_retry=lambda _message_id, _missing: None,
+            request_full_buffer=lambda _message_id: b"fallback",
+            max_total_bytes=limit,
+        )

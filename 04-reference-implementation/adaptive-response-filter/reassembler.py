@@ -20,6 +20,7 @@ from policy import DeliveryPolicy
 
 DEFAULT_MAX_CHUNKS = MAX_ENVELOPE_CHUNKS
 DEFAULT_MAX_PAYLOAD_BYTES = MAX_ENVELOPE_PAYLOAD_BYTES
+DEFAULT_MAX_TOTAL_BYTES = 268_435_456
 
 
 @dataclass
@@ -54,9 +55,9 @@ class Reassembler:
         if self.max_payload_bytes <= 0:
             raise ValueError("max_payload_bytes must be positive")
 
-    def add_chunk(
+    def _prepare_chunk(
         self, chunk: WireEnvelope | Mapping[str, object]
-    ) -> bytes | None:
+    ) -> tuple[WireEnvelope, bytes, int, bool]:
         if self._completed:
             raise ValueError(
                 "a Reassembler instance handles one message; create a new instance"
@@ -89,9 +90,7 @@ class Reassembler:
         if existing is not None:
             if existing != payload:
                 raise ValueError(f"conflicting duplicate chunk {sequence}")
-            if len(self.received) == self.total_chunks:
-                return self._reassemble()
-            return None
+            return envelope, payload, 0, True
 
         if self._received_bytes + len(payload) > self.max_payload_bytes:
             raise ValueError(
@@ -99,12 +98,24 @@ class Reassembler:
                 f"{self.max_payload_bytes} bytes"
             )
 
+        return envelope, payload, len(payload), False
+
+    def add_chunk(
+        self, chunk: WireEnvelope | Mapping[str, object]
+    ) -> bytes | None:
+        envelope, payload, added_bytes, duplicate = self._prepare_chunk(chunk)
+        sequence = envelope.sequence
+        if duplicate:
+            if len(self.received) == self.total_chunks:
+                return self._reassemble()
+            return None
+
         if self.total_chunks is None:
             self.total_chunks = envelope.total_chunks
             self.merge_mode = envelope.merge_mode
             self.message_id = envelope.message_id
         self.received[sequence] = payload
-        self._received_bytes += len(payload)
+        self._received_bytes += added_bytes
 
         if len(self.received) == self.total_chunks:
             assembled = self._reassemble()
@@ -218,6 +229,7 @@ class ReassemblySessionManager:
     session_ttl_seconds: float = 300.0
     tombstone_ttl_seconds: float = 3600.0
     max_tombstones: int = 4096
+    max_total_bytes: int = DEFAULT_MAX_TOTAL_BYTES
     policy: DeliveryPolicy = field(default_factory=DeliveryPolicy)
     clock: Callable[[], float] = time.monotonic
     sessions: dict[str, ReassemblySession] = field(default_factory=dict, init=False)
@@ -254,13 +266,22 @@ class ReassemblySessionManager:
             raise TypeError("max_tombstones must be an integer")
         if self.max_tombstones <= 0:
             raise ValueError("max_tombstones must be positive")
+        if isinstance(self.max_total_bytes, bool) or not isinstance(
+            self.max_total_bytes, int
+        ):
+            raise TypeError("max_total_bytes must be an integer")
+        if self.max_total_bytes <= 0:
+            raise ValueError("max_total_bytes must be positive")
 
-    def _evict_expired_sessions(self, now: float) -> None:
-        expired = [
+    def _expired_session_ids(self, now: float) -> set[str]:
+        return {
             message_id
             for message_id, last_activity in self._session_activity.items()
             if now - last_activity >= self.session_ttl_seconds
-        ]
+        }
+
+    def _evict_expired_sessions(self, now: float) -> None:
+        expired = self._expired_session_ids(now)
         for message_id in expired:
             self.sessions.pop(message_id, None)
             self._session_activity.pop(message_id, None)
@@ -282,21 +303,26 @@ class ReassemblySessionManager:
     def add_chunk(self, chunk: WireEnvelope | Mapping[str, object]) -> bytes | None:
         envelope = chunk
         now = self.clock()
-        self._evict_expired_sessions(now)
-        self._purge_expired_tombstones(now)
         if not isinstance(envelope, WireEnvelope):
             envelope = WireEnvelope.from_mapping(envelope)
-        if envelope.message_id in self.tombstones:
+        expired_sessions = self._expired_session_ids(now)
+        expired_tombstones = {
+            message_id
+            for message_id, expires_at in self.tombstones.items()
+            if now >= expires_at
+        }
+        if (
+            envelope.message_id in self.tombstones
+            and envelope.message_id not in expired_tombstones
+        ):
             raise ValueError("message_id is tombstoned; replay rejected")
-        session = self.sessions.get(envelope.message_id)
+        session = (
+            None
+            if envelope.message_id in expired_sessions
+            else self.sessions.get(envelope.message_id)
+        )
         created = session is None
         if session is None:
-            if len(self.sessions) >= self.max_sessions:
-                self._evict_expired_sessions(now)
-            if len(self.sessions) >= self.max_sessions:
-                raise ValueError(
-                    f"maximum reassembly sessions reached ({self.max_sessions})"
-                )
             session = ReassemblySession(
                 message_id=envelope.message_id,
                 authentication_key=self.authentication_key,
@@ -305,6 +331,26 @@ class ReassemblySessionManager:
                 policy=self.policy,
                 clock=self.clock,
             )
+
+        _, _, added_bytes, _ = session.reassembler._prepare_chunk(envelope)
+        active_payload_bytes = sum(
+            active.reassembler._received_bytes
+            for message_id, active in self.sessions.items()
+            if message_id not in expired_sessions
+        )
+        if active_payload_bytes + added_bytes > self.max_total_bytes:
+            raise ValueError(
+                "maximum total active payload bytes exceeded "
+                f"({self.max_total_bytes})"
+            )
+
+        self._evict_expired_sessions(now)
+        self._purge_expired_tombstones(now)
+        if created and len(self.sessions) >= self.max_sessions:
+            raise ValueError(
+                f"maximum reassembly sessions reached ({self.max_sessions})"
+            )
+        if created:
             self.sessions[envelope.message_id] = session
             self._session_activity[envelope.message_id] = now
         try:
