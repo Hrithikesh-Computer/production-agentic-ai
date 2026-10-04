@@ -1,6 +1,6 @@
 # Production Agentic AI
 
-Engineering analysis and reference implementations for production agentic AI reliability.
+A research-oriented engineering handbook for designing and validating reliable production AI systems.
 
 ## What this is
 
@@ -24,6 +24,28 @@ The implemented slices include a local authenticated-envelope/reassembly protoco
 
 The active runtime and dependency boundary is documented once in [ROADMAP.md](./ROADMAP.md#systemic-dependencies--future-research-context) and [04-reference-implementation/README.md](./04-reference-implementation/README.md).
 
+## Research Trail and Evidence Levels
+
+Each investigation should connect the engineering question to its architecture, decision, executable slice, tests or benchmark, evidence record, known limits, and next validation. These levels describe the strongest evidence currently present for a specific slice; they do not rate production readiness.
+
+| Level | Meaning |
+|---|---|
+| L0 — Conceptual | Analysis, hypothesis, or proposed architecture; no executable behavior for the claim |
+| L1 — Executable | A local reference implementation exists |
+| L2 — Reproducible | Local tests or benchmarks reproduce the bounded behavior under stated conditions |
+| L3 — Environment validated | Tested against representative external systems in a bounded non-production environment |
+| L4 — Operational | Deployed with telemetry, failure handling, and named operational ownership |
+| L5 — Production validated | Evidence from an actual production or customer setting, with scope and conditions recorded |
+
+| Investigation slice | Current level | Evidence trail and boundary |
+|---|---|---|
+| Response delivery | L2 | [Engineering question and implementation boundary](./03-production-lessons/01-adaptive-response-delivery.md) → [ADR-001](./architecture/02-decisions/ADR-001-response-delivery.md) → [reference implementation and tests](./04-reference-implementation/adaptive-response-filter/) → [browser evidence and limitations](./benchmarks/response-delivery/browser-matrix-evidence.md). Measurements are synthetic and runtime-dependent; representative CRM payloads, a second browser engine, and client decompression costs remain open. |
+| Context lifecycle | L0 | [Lifecycle question and hypothesis](./02-context-and-memory/01-beyond-token-windows.md). No context-lifecycle implementation or benchmark is currently present. |
+| Authority policy evaluator | L2 | [Authority and intent question](./01-agent-architecture/01-agent-authority-and-intent.md) → [bounded evaluator](./04-reference-implementation/authority_policy.py) → [tests](./tests/test_authority_policy.py). This local evaluator does not establish authenticated identity or semantic alignment. |
+| CRM approval workflow | L2 | [Proposed architecture](./architecture/00-solution-overview.md) → [approval decision](./architecture/02-decisions/ADR-002-approval-signing.md) → [in-memory simulation and tests](./prototypes/crm_operational_copilot/approval_workflow.py) → [evidence and limitations](./prototypes/crm_operational_copilot/EVIDENCE.md). The simulation is serial and uses caller-supplied identities and in-memory state; concurrency, sink-failure recovery, and external integration remain unvalidated. |
+
+No current investigation slice demonstrates L3 or higher. The highest-value next evidence is a bounded non-production validation using real identity, conditional CRM writes, durable audit, rollback, telemetry, and named operational ownership; it is a proposed next step, not an existing capability.
+
 ## Repository Capability Statement
 
 | Category | Status in this repo | Evidence |
@@ -34,17 +56,14 @@ The active runtime and dependency boundary is documented once in [ROADMAP.md](./
 | Research hypotheses | Context lifecycle and authority/intent analyses | No context-lifecycle benchmark; a small time-bounded authority policy evaluator exists but does not implement semantic alignment |
 | External / absent | EMR, Spark, PostgreSQL/RDS pipelines, production deployments, and cloud service stacks referenced in archived examples | Not present in the checked-in repository; not measured here |
 
-## Start Here
+## Featured Investigations
 
-- [03-production-lessons/01-adaptive-response-delivery.md](./03-production-lessons/01-adaptive-response-delivery.md) — delivery hypothesis and the local implementation boundary
-- [02-context-and-memory/01-beyond-token-windows.md](./02-context-and-memory/01-beyond-token-windows.md) — lifecycle hypothesis; no local implementation or benchmark
-- [01-agent-architecture/01-agent-authority-and-intent.md](./01-agent-architecture/01-agent-authority-and-intent.md) — authority and intent research note
-- [04-reference-implementation/](./04-reference-implementation/) — tested `adaptive-response-filter` reference slice
-- [04-reference-implementation/authority_policy.py](./04-reference-implementation/authority_policy.py) — bounded time-window and priority evaluator
-- [04-reference-implementation/ndjson_stream.py](./04-reference-implementation/ndjson_stream.py) — bounded incremental NDJSON object decoder
-- [architecture/](./architecture/README.md) — proposed CRM-with-human-approval architecture and its evidence boundaries
-- [prototypes/crm_operational_copilot/approval_workflow.py](./prototypes/crm_operational_copilot/approval_workflow.py) — local in-memory approval workflow simulation; no live CRM, identity provider, or model
-- [tests/test_authority_referral.py](./tests/test_authority_referral.py) and [prototypes/crm_operational_copilot/test_approval_workflow.py](./prototypes/crm_operational_copilot/test_approval_workflow.py) — referral and workflow behavior tests
+1. **Adaptive Response Delivery** — [Investigation](./03-production-lessons/01-adaptive-response-delivery.md), [reference implementation and tests](./04-reference-implementation/adaptive-response-filter/), and [browser evidence](./benchmarks/response-delivery/browser-matrix-evidence.md). The strongest empirical slice here, with synthetic, runtime-dependent results and clear open validation questions.
+2. **Context Lifecycle** — [Research note](./02-context-and-memory/01-beyond-token-windows.md) on what information should survive across interactions. Currently L0: no local implementation or benchmark.
+3. **Agent Authority** — [Authority and intent research](./01-agent-architecture/01-agent-authority-and-intent.md), alongside a [bounded policy evaluator](./04-reference-implementation/authority_policy.py) and [tests](./tests/test_authority_policy.py). The evaluator is local and deterministic; it does not establish authenticated identity or semantic alignment.
+4. **CRM Operational Copilot** — [Proposed architecture](./architecture/README.md) and [approval workflow simulation](./prototypes/crm_operational_copilot/approval_workflow.py), with its [evidence boundaries](./prototypes/crm_operational_copilot/EVIDENCE.md). Architecture remains proposed; the workflow is an in-memory local simulation, not a live CRM integration.
+
+Supporting artifacts: [NDJSON decoder](./04-reference-implementation/ndjson_stream.py), [referral tests](./tests/test_authority_referral.py), and [CRM workflow tests](./prototypes/crm_operational_copilot/test_approval_workflow.py).
 
 The out-of-scope [EMR-to-PostgreSQL architecture analysis](./archive/design-sketches-2026/02-emr-to-postgresql-ingestion-architecture.md) is retained in the design archive.
 
@@ -56,7 +75,7 @@ This is a proposed design plus local simulation, not a deployed CRM product. Use
 
 1. Read the [solution overview](./architecture/00-solution-overview.md) for the problem, scope, intended outcome, and what is not implemented.
 2. Open the [C4 container diagram](./architecture/diagrams/c4-containers.mmd) and follow the [context and containers notes](./architecture/01-context-and-containers.md). The identity provider, CRM, model provider, approval queue, authority gateway, and audit store are proposed components.
-3. Read the [three ADRs](./architecture/02-decisions/README.md) and the [authority options analysis](./architecture/03-options-analysis.md) to see alternatives, trade-offs, and provisional choices.
+3. Read the [ADR index](./architecture/02-decisions/README.md) and the [authority options analysis](./architecture/03-options-analysis.md) to see alternatives, trade-offs, and provisional choices.
 4. Scan the [STRIDE threat model](./architecture/04-threat-model.md), especially the flow IDs for model prompt injection, approval replay, and the recheck-before-write boundary.
 5. Run `python prototypes/crm_operational_copilot/approval_workflow.py` and `python -m pytest -q prototypes/crm_operational_copilot/test_approval_workflow.py tests/test_authority_referral.py`. The simulation uses in-memory mock records; 16 workflow test cases cover approval, binding, current requester/reviewer authority, stale records, expiry, and replay, while 7 referral tests cover evaluator, aggregate, session, and ticket behavior.
 
