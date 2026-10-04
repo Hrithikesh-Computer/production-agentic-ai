@@ -12,7 +12,10 @@ REF_IMPL = ROOT / "04-reference-implementation" / "adaptive-response-filter"
 if str(REF_IMPL) not in sys.path:
     sys.path.insert(0, str(REF_IMPL))
 
-from filter import AdaptiveResponseFilter  # noqa: E402
+from filter import (  # noqa: E402  # type: ignore[import-not-found]
+    AdaptiveResponseFilter,
+)
+from reassembler import Reassembler  # noqa: E402  # type: ignore[import-not-found]
 
 AUTH_KEY = b"response-delivery-benchmark-key"
 
@@ -22,29 +25,31 @@ class ScenarioResult:
     payload_size: int
     mode: str
     chunk_count: int
-    time_to_first_visible_ms: float
-    total_delivery_ms: float
-    reassembly_correct: bool
-    ordering_correct: bool
-    validation_failures: int
-    max_state_bytes: int
+    build_ms: float
+    reassembly_ms: float | None
+    payload_correct: bool
 
 
 def _make_payload(size_bytes: int) -> str:
-    base = {
-        "status": "ok",
-        "items": [
-            {"id": i, "name": f"item-{i}", "payload": "x" * 32}
-            for i in range(1, 200)
-        ],
-    }
-    payload = json.dumps(base, ensure_ascii=False)
-    if len(payload.encode("utf-8")) >= size_bytes:
-        return payload[: max(1, size_bytes)]
-    return (payload * ((size_bytes // len(payload)) + 1))[:size_bytes]
+    item_count = max(1, size_bytes // 90)
+    while True:
+        payload = {
+            f"item-{index}": {
+                "id": index,
+                "name": f"item-{index}",
+                "payload": "x" * 32,
+            }
+            for index in range(item_count)
+        }
+        serialized = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+        if len(serialized.encode("utf-8")) >= size_bytes:
+            return serialized
+        item_count += max(1, (size_bytes - len(serialized)) // 90)
 
 
-def _simulate_delivery(payload: str, threshold: int, chunk_size: int) -> ScenarioResult:
+def _run_case(payload: str, mode: str, chunk_size: int) -> ScenarioResult:
+    payload_bytes = payload.encode("utf-8")
+    threshold = len(payload_bytes) + 1 if mode == "full" else 1
     filter_obj = AdaptiveResponseFilter(
         threshold_bytes=threshold,
         max_chunk_bytes=chunk_size,
@@ -53,117 +58,108 @@ def _simulate_delivery(payload: str, threshold: int, chunk_size: int) -> Scenari
 
     start = time.perf_counter()
     built = filter_obj.build(payload)
-    elapsed = time.perf_counter() - start
+    build_ms = (time.perf_counter() - start) * 1000
 
-    if built.mode == "full":
-        chunks = [payload.encode("utf-8")]
-        chunk_count = 1
-        first_visible = 0.0
-        total_delivery = elapsed * 1.2
-        reassembly_correct = payload.encode("utf-8") == chunks[0]
-        ordering_correct = True
-        validation_failures = 0
-        state_bytes = len(chunks[0])
+    if mode == "full":
+        if built.mode != "full":
+            raise AssertionError("full policy unexpectedly selected chunking")
         return ScenarioResult(
-            payload_size=len(payload.encode("utf-8")),
+            payload_size=len(payload_bytes),
             mode="full",
-            chunk_count=chunk_count,
-            time_to_first_visible_ms=first_visible,
-            total_delivery_ms=total_delivery,
-            reassembly_correct=reassembly_correct,
-            ordering_correct=ordering_correct,
-            validation_failures=validation_failures,
-            max_state_bytes=state_bytes,
+            chunk_count=1,
+            build_ms=build_ms,
+            reassembly_ms=None,
+            payload_correct=built.payload.encode("utf-8") == payload_bytes,
         )
 
+    if built.mode != "chunked":
+        raise AssertionError("chunked policy unexpectedly selected full delivery")
     chunk_count = len(built.chunks)
-    first_visible = max(0.0, elapsed * 0.42)
-    chunk_payloads = [chunk.payload_bytes() for chunk in built.chunks]
-    merged = b"".join(chunk_payloads)
-    reassembly_correct = merged == payload.encode("utf-8")
-    ordering_correct = list(range(chunk_count)) == [
-        chunk.sequence for chunk in built.chunks
-    ]
-    validation_failures = 0
-    max_state_bytes = sum(len(chunk.payload_bytes()) for chunk in built.chunks)
-    total_delivery = elapsed * 1.5
+    receiver = Reassembler(authentication_key=AUTH_KEY)
+    start = time.perf_counter()
+    merged = None
+    for chunk in reversed(built.chunks):
+        merged = receiver.add_chunk(chunk)
+    reassembly_ms = (time.perf_counter() - start) * 1000
+    if merged is None:
+        raise AssertionError("receiver did not complete after all chunks arrived")
+    if built.chunks[0].merge_mode == "json-object":
+        payload_correct = json.loads(merged) == json.loads(payload_bytes)
+    else:
+        payload_correct = merged == payload_bytes
 
     return ScenarioResult(
-        payload_size=len(payload.encode("utf-8")),
+        payload_size=len(payload_bytes),
         mode="chunked",
         chunk_count=chunk_count,
-        time_to_first_visible_ms=first_visible,
-        total_delivery_ms=total_delivery,
-        reassembly_correct=reassembly_correct,
-        ordering_correct=ordering_correct,
-        validation_failures=validation_failures,
-        max_state_bytes=max_state_bytes,
+        build_ms=build_ms,
+        reassembly_ms=reassembly_ms,
+        payload_correct=payload_correct,
     )
 
 
-def _run_scenario(
-    size: int,
-    threshold: int,
-    chunk_size: int,
-    repeats: int = 10,
-) -> list[ScenarioResult]:
-    results: list[ScenarioResult] = []
-    for _ in range(repeats):
-        payload = _make_payload(size)
-        results.append(_simulate_delivery(payload, threshold, chunk_size))
-    return results
-
-
 def _summarize(results: list[ScenarioResult]) -> dict[str, float | int | str]:
+    build_times = [result.build_ms for result in results]
+    reassembly_times = [
+        result.reassembly_ms
+        for result in results
+        if result.reassembly_ms is not None
+    ]
     return {
         "payload_size": results[0].payload_size,
         "mode": results[0].mode,
-        "mean_ttfv_ms": statistics.mean(r.time_to_first_visible_ms for r in results),
-        "mean_total_delivery_ms": statistics.mean(r.total_delivery_ms for r in results),
-        "mean_chunk_count": statistics.mean(r.chunk_count for r in results),
-        "max_state_bytes": max(r.max_state_bytes for r in results),
-        "reassembly_correct": all(r.reassembly_correct for r in results),
-        "ordering_correct": all(r.ordering_correct for r in results),
-        "validation_failures": sum(r.validation_failures for r in results),
+        "median_build_ms": statistics.median(build_times),
+        "max_build_ms": max(build_times),
+        "median_reassembly_ms": statistics.median(reassembly_times)
+        if reassembly_times
+        else "not-applicable",
+        "max_reassembly_ms": max(reassembly_times)
+        if reassembly_times
+        else "not-applicable",
+        "median_chunk_count": statistics.median(
+            result.chunk_count for result in results
+        ),
+        "payload_correct": all(result.payload_correct for result in results),
     }
 
 
 def main() -> None:
     sizes = [10_000, 50_000, 150_000, 300_000]
-    threshold = 32_000
     chunk_size = 16_000
     rows: list[dict[str, float | int | str]] = []
 
     for payload_size in sizes:
-        results = _run_scenario(
-            payload_size,
-            threshold=threshold,
-            chunk_size=chunk_size,
-        )
-        rows.append(_summarize(results))
+        payload = _make_payload(payload_size)
+        for mode in ("full", "chunked"):
+            for _ in range(5):
+                _run_case(payload, mode, chunk_size)
+            results = [
+                _run_case(payload, mode, chunk_size) for _ in range(30)
+            ]
+            rows.append(_summarize(results))
 
     print(
-        "payload_size,mode,mean_ttfv_ms,mean_total_delivery_ms,mean_chunk_count,max_state_bytes,reassembly_correct,ordering_correct,validation_failures"
+        "payload_size,mode,median_build_ms,max_build_ms,median_reassembly_ms,max_reassembly_ms,median_chunk_count,payload_correct"
     )
     for row in rows:
         print(
-            f"{row['payload_size']},{row['mode']},{row['mean_ttfv_ms']},{row['mean_total_delivery_ms']},{row['mean_chunk_count']},{row['max_state_bytes']},{row['reassembly_correct']},{row['ordering_correct']},{row['validation_failures']}"
+            f"{row['payload_size']},{row['mode']},{row['median_build_ms']},{row['max_build_ms']},{row['median_reassembly_ms']},{row['max_reassembly_ms']},{row['median_chunk_count']},{row['payload_correct']}"
         )
 
     output_path = Path(__file__).with_name("results.csv")
     with output_path.open("w", encoding="utf-8") as handle:
         handle.write(
-            "payload_size,mode,mean_ttfv_ms,mean_total_delivery_ms,mean_chunk_count,max_state_bytes,reassembly_correct,ordering_correct,validation_failures\n"
+            "payload_size,mode,median_build_ms,max_build_ms,median_reassembly_ms,max_reassembly_ms,median_chunk_count,payload_correct\n"
         )
         for row in rows:
             handle.write(
-                f"{row['payload_size']},{row['mode']},{row['mean_ttfv_ms']},{row['mean_total_delivery_ms']},{row['mean_chunk_count']},{row['max_state_bytes']},{row['reassembly_correct']},{row['ordering_correct']},{row['validation_failures']}\n"
+                f"{row['payload_size']},{row['mode']},{row['median_build_ms']},{row['max_build_ms']},{row['median_reassembly_ms']},{row['max_reassembly_ms']},{row['median_chunk_count']},{row['payload_correct']}\n"
             )
 
     print(f"\nCSV saved to: {output_path}")
     print(
-        "\nThis benchmark is a controlled local experiment. "
-        "It is not a production deployment benchmark."
+        "\nPaired same-payload local policy timings only; no browser, network, "
+        "or production delivery measurements."
     )
 
 
