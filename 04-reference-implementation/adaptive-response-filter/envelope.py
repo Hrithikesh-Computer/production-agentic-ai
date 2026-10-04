@@ -11,6 +11,7 @@ from typing import Mapping
 
 MAX_ENVELOPE_CHUNKS = 10_000
 MAX_ENVELOPE_PAYLOAD_BYTES = 16_000_000
+MIN_AUTHENTICATION_KEY_BYTES = 16
 
 
 def checksum(payload: bytes) -> str:
@@ -30,8 +31,13 @@ def authentication_tag(
     authentication_key: bytes,
 ) -> str:
     """Sign every routing, integrity, and payload field with HMAC-SHA256."""
-    if not isinstance(authentication_key, bytes) or not authentication_key:
-        raise ValueError("authentication_key must be non-empty bytes")
+    if (
+        not isinstance(authentication_key, bytes)
+        or len(authentication_key) < MIN_AUTHENTICATION_KEY_BYTES
+    ):
+        raise ValueError(
+            f"authentication_key must be at least {MIN_AUTHENTICATION_KEY_BYTES} bytes"
+        )
     authenticated_fields = {
         "sequence": sequence,
         "total_chunks": total_chunks,

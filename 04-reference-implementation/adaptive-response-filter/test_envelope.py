@@ -82,6 +82,18 @@ def test_envelope_rejects_invalid_utf8_bytes():
         )
 
 
+def test_envelope_builder_rejects_authentication_key_shorter_than_16_bytes():
+    with pytest.raises(ValueError, match="16"):
+        WireEnvelope.from_bytes(
+            sequence=0,
+            total_chunks=1,
+            payload=b"payload",
+            is_final=True,
+            message_id=MESSAGE_ID,
+            authentication_key=b"x" * 15,
+        )
+
+
 def test_envelope_rejects_protocol_size_limits(monkeypatch):
     monkeypatch.setattr(envelope, "MAX_ENVELOPE_CHUNKS", 2)
     with pytest.raises(ValueError, match="protocol maximum"):

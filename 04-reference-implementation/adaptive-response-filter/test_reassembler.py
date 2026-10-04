@@ -84,6 +84,11 @@ def test_hmac_rejects_message_id_tampering():
         Reassembler(authentication_key=AUTH_KEY).add_chunk(envelope)
 
 
+def test_reassembler_rejects_authentication_key_shorter_than_16_bytes():
+    with pytest.raises(ValueError, match="16"):
+        Reassembler(authentication_key=b"x" * 15)
+
+
 def test_missing_reports_correctly():
     reassembler = Reassembler(authentication_key=AUTH_KEY)
     reassembler.add_chunk(_to_envelope(0, 3, b'{"a": 1}', False))

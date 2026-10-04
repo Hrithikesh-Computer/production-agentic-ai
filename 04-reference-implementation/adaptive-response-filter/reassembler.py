@@ -10,6 +10,7 @@ from typing import Callable, Mapping
 from envelope import (
     MAX_ENVELOPE_CHUNKS,
     MAX_ENVELOPE_PAYLOAD_BYTES,
+    MIN_AUTHENTICATION_KEY_BYTES,
     WireEnvelope,
     checksum,
 )
@@ -34,9 +35,12 @@ class Reassembler:
     def __post_init__(self) -> None:
         if (
             not isinstance(self.authentication_key, bytes)
-            or not self.authentication_key
+            or len(self.authentication_key) < MIN_AUTHENTICATION_KEY_BYTES
         ):
-            raise ValueError("authentication_key must be non-empty bytes")
+            raise ValueError(
+                "authentication_key must be at least "
+                f"{MIN_AUTHENTICATION_KEY_BYTES} bytes"
+            )
         if isinstance(self.max_chunks, bool) or not isinstance(self.max_chunks, int):
             raise TypeError("max_chunks must be an integer")
         if self.max_chunks <= 0:
