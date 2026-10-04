@@ -5,3 +5,4 @@ These records capture proposed decisions for the CRM Operations Copilot scenario
 - [ADR-001: Response delivery](ADR-001-response-delivery.md)
 - [ADR-002: Approval evidence and signing](ADR-002-approval-signing.md)
 - [ADR-003: Context lifecycle deferral](ADR-003-context-lifecycle-deferral.md)
+- [ADR-004: Envelope versioning, compatibility, and key identification](ADR-004-envelope-versioning.md)
