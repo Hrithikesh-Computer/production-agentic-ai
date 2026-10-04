@@ -56,6 +56,21 @@ fragments are still retained. For one maximum-size 16,000,000-byte message,
 payload plus joined output can therefore transiently require about 32,000,000
 bytes, excluding Python object and serialization overhead.
 
+A local `tracemalloc` measurement on 64-bit Windows with Python 3.14.6 used
+zero-byte `concat` chunks. Empty payloads are accepted. At the 10,000-chunk
+per-session limit, an incomplete session can retain at most 9,999 chunks,
+because accepting the final chunk completes and removes the session. Measured
+against the default 256 MiB tracked payload cap:
+
+| State at measurement | Current bytes | Peak bytes | Tracked payload bytes | Current / cap | Peak / cap |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1,024 sessions, one chunk each | 699,754 | 701,489 | 0 | 0.002607x | 0.002613x |
+| 1 session, 9,999 chunks | 608,408 | 613,050 | 0 | 0.002266x | 0.002284x |
+
+These figures are process-local measurements, not a general memory guarantee.
+At the tested caps, measured untracked current memory is far below twice the
+tracked byte cap; no per-chunk overhead is included in byte accounting.
+
 ## NDJSON Failure Contract
 
 The NDJSON decoder accepts UTF-8, newline-delimited JSON objects, with a
