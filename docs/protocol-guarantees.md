@@ -56,6 +56,22 @@ fragments are still retained. For one maximum-size 16,000,000-byte message,
 payload plus joined output can therefore transiently require about 32,000,000
 bytes, excluding Python object and serialization overhead.
 
+## Receiver Outcome Signals
+
+Receiver failures and state transitions emit a structured dictionary containing
+only a fixed `outcome` value: `session_cap_rejected`,
+`active_payload_cap_rejected`, `message_limit_rejected`, `session_expired`,
+`tombstone_evicted`, `envelope_integrity_rejected`,
+`authentication_rejected`, `retry_callback_failed`,
+`full_buffer_callback_failed`, or `ndjson_decoder_poisoned`. The default local
+sink prints these records; the emitter accepts a sink callable for integration.
+Records contain no message ID, payload, key, authentication tag, callback error
+text, or configured limit values. The vocabulary and record shape therefore
+have bounded cardinality and are safe to aggregate without request material.
+
+These are local receiver outcomes, not a monitoring backend or receiver health
+dashboard. A production integration must supply a sink and operational alerts.
+
 A local `tracemalloc` measurement on 64-bit Windows with Python 3.14.6 used
 zero-byte `concat` chunks. Empty payloads are accepted. At the 10,000-chunk
 per-session limit, an incomplete session can retain at most 9,999 chunks,

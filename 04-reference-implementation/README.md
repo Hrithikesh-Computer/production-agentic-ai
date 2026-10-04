@@ -13,6 +13,7 @@ This implementation is intentionally constrained in exactly the same way the art
 - [adaptive-response-filter/chunker.py](./adaptive-response-filter/chunker.py) — JSON object splitting and UTF-8-safe fallback chunking
 - [adaptive-response-filter/filter.py](./adaptive-response-filter/filter.py) — filter API that returns validated envelope objects
 - [adaptive-response-filter/middleware.py](./adaptive-response-filter/middleware.py) — serialized response API that yields wire mappings
+- [adaptive-response-filter/metrics.py](./adaptive-response-filter/metrics.py) — sender metrics and fixed-cardinality receiver outcomes
 - [adaptive-response-filter/reassembler.py](./adaptive-response-filter/reassembler.py) — bounded single-message receiver and reassembly logic
 - [adaptive-response-filter/demo.py](./adaptive-response-filter/demo.py) — a simple script that demonstrates the full-buffer and chunked paths
 
