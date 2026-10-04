@@ -27,6 +27,17 @@ def _reject_nonstandard_json_constant(value: str) -> Any:
     raise NDJSONError(f"non-standard JSON constant: {value}")
 
 
+def _reject_duplicate_object_names(
+    pairs: list[tuple[str, Any]],
+) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise NDJSONError(f"duplicate JSON object name: {key!r}")
+        result[key] = value
+    return result
+
+
 class NDJSONDecoder:
     """Incrementally decode newline-delimited JSON objects from UTF-8 bytes.
 
@@ -82,6 +93,7 @@ class NDJSONDecoder:
                 value = json.loads(
                     line.decode("utf-8"),
                     parse_constant=_reject_nonstandard_json_constant,
+                    object_pairs_hook=_reject_duplicate_object_names,
                 )
                 if not isinstance(value, dict):
                     raise NDJSONError("NDJSON records must be JSON objects")
