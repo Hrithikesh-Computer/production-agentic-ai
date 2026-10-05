@@ -22,6 +22,7 @@ from receiver_outcomes import ReceiverOutcome, emit_receiver_outcome
 DEFAULT_MAX_CHUNKS = MAX_ENVELOPE_CHUNKS
 DEFAULT_MAX_PAYLOAD_BYTES = MAX_ENVELOPE_PAYLOAD_BYTES
 DEFAULT_MAX_TOTAL_BYTES = 268_435_456
+OVERHEAD_PER_CHUNK = 96
 
 
 @dataclass
@@ -325,6 +326,14 @@ class ReassemblySessionManager:
             emit_receiver_outcome(ReceiverOutcome.TOMBSTONE_EVICTED)
         self.tombstones[message_id] = now + self.tombstone_ttl_seconds
 
+    @property
+    def active_memory_bytes(self) -> int:
+        return sum(
+            session.reassembler._received_bytes
+            + OVERHEAD_PER_CHUNK * len(session.reassembler.received)
+            for session in self.sessions.values()
+        )
+
     def add_chunk(self, chunk: WireEnvelope | Mapping[str, object]) -> bytes | None:
         envelope = chunk
         now = self.clock()
@@ -358,12 +367,17 @@ class ReassemblySessionManager:
             )
 
         _, _, added_bytes, duplicate = session.reassembler._prepare_chunk(envelope)
-        active_payload_bytes = sum(
+        active_memory_bytes = sum(
             active.reassembler._received_bytes
+            + OVERHEAD_PER_CHUNK * len(active.reassembler.received)
             for message_id, active in self.sessions.items()
             if message_id not in expired_sessions
         )
-        if active_payload_bytes + added_bytes > self.max_total_bytes:
+        chunk_overhead_bytes = 0 if duplicate else OVERHEAD_PER_CHUNK
+        if (
+            active_memory_bytes + added_bytes + chunk_overhead_bytes
+            > self.max_total_bytes
+        ):
             emit_receiver_outcome(ReceiverOutcome.ACTIVE_PAYLOAD_CAP_REJECTED)
             raise ValueError(
                 "maximum total active payload bytes exceeded "

@@ -47,7 +47,7 @@ def test_session_and_payload_cap_rejections_emit_outcomes(monkeypatch):
     with pytest.raises(ValueError, match="sessions reached"):
         session_limited.add_chunk(_chunk("other", 0, 2, b"b"))
 
-    byte_limited = _manager(max_total_bytes=1)
+    byte_limited = _manager(max_total_bytes=97)
     assert byte_limited.add_chunk(_chunk("held-bytes", 0, 2, b"a")) is None
     with pytest.raises(ValueError, match="total active payload bytes"):
         byte_limited.add_chunk(_chunk("over-bytes", 0, 2, b"b"))
