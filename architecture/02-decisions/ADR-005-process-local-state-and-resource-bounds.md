@@ -62,7 +62,8 @@ The current defaults are:
 | Session idle TTL | 300 seconds | Releases abandoned partial messages; only a new chunk refreshes activity. |
 | Tombstone TTL | 3,600 seconds | Keeps completed IDs in the local replay window. |
 | Tombstone capacity | 4,096 | Bounds replay state; evict the oldest tombstone first at capacity. |
-| Aggregate active payload bytes | 268,435,456 bytes (256 MiB) | Caps tracked payload across active sessions. Recompute the active sum on each intake to avoid a separately maintained counter drifting on duplicates, completion, or expiry; the scan is bounded by the session cap. |
+| Aggregate active memory bytes | 268,435,456 bytes (256 MiB) | Caps payload plus a fixed 96-byte charge per retained chunk. Recompute the active sum on each intake to avoid a separately maintained counter drifting on duplicates, completion, or expiry; the scan is bounded by the session cap. The charge rounds the measured maximum untracked estimate of 86.97 bytes/chunk up to a multiple of 16. |
+| Per-retained-chunk aggregate charge | 96 bytes | Conservative measured Python object and container overhead estimate; applies to empty chunks too. It does not alter the per-message payload-only limit. |
 | Chunks per message | 10,000 | Bounds per-message bookkeeping; a completed message leaves active session state. |
 | Payload bytes per message | 16,000,000 bytes | Bounds one reassembled payload independently of the aggregate cap. |
 | NDJSON record bytes | 1,048,576 bytes (1 MiB) | Bounds one decoder record before JSON parsing. |
@@ -107,6 +108,8 @@ this decision if any of the following becomes true:
 
 - A representative load test shows intake-time summation materially affects
   latency, or measured process memory approaches the deployment budget.
+- Aggregate memory including the fixed per-chunk overhead exceeds the
+  deployment budget.
 - A pilot requires multiple workers, restart recovery, durable replay
   protection, per-principal quotas, acknowledgments, or coordinated expiry.
 - The receiver accepts multiple keys or key IDs; define whether state is scoped
