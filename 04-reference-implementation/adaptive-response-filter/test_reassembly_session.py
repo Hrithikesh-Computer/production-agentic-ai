@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+import random
 from threading import Barrier
 
 import pytest
@@ -7,6 +8,7 @@ from policy import DeliveryPolicy
 from reassembler import ReassemblySession, ReassemblySessionManager
 
 AUTH_KEY = b"unit-test-authentication-key"
+EXPECTED_OVERHEAD_PER_CHUNK = 96
 
 
 def _chunk(message_id, sequence, total, payload):
@@ -21,9 +23,10 @@ def _chunk(message_id, sequence, total, payload):
     )
 
 
-def _held_payload_bytes(manager):
+def _held_accounted_bytes(manager):
     return sum(
         session.reassembler._received_bytes
+        + EXPECTED_OVERHEAD_PER_CHUNK * len(session.reassembler.received)
         for session in manager.sessions.values()
     )
 
@@ -404,12 +407,12 @@ def test_session_rejects_empty_message_id():
         raise AssertionError("session accepted an empty message_id")
 
 
-def test_total_byte_cap_rejection_leaves_manager_state_unchanged():
+def test_total_memory_cap_rejection_leaves_manager_state_unchanged():
     manager = ReassemblySessionManager(
         authentication_key=AUTH_KEY,
         request_retry=lambda _message_id, _missing: None,
         request_full_buffer=lambda _message_id: b"fallback",
-        max_total_bytes=5,
+        max_total_bytes=150,
         clock=lambda: 0.0,
     )
     assert manager.add_chunk(_chunk("held", 0, 2, b"1234")) is None
@@ -420,10 +423,11 @@ def test_total_byte_cap_rejection_leaves_manager_state_unchanged():
     activity_before = manager._session_activity.copy()
     tombstones_before = manager.tombstones.copy()
 
+    accounted_before = _held_accounted_bytes(manager)
     with pytest.raises(ValueError, match="total active payload bytes"):
         manager.add_chunk(_chunk("over", 0, 2, b"xy"))
 
-    assert _held_payload_bytes(manager) == 4
+    assert _held_accounted_bytes(manager) == accounted_before == 100
     assert {
         message_id: session.reassembler.received.copy()
         for message_id, session in manager.sessions.items()
@@ -432,13 +436,13 @@ def test_total_byte_cap_rejection_leaves_manager_state_unchanged():
     assert manager.tombstones == tombstones_before
 
 
-def test_total_byte_cap_retries_same_chunk_after_expiry_frees_bytes():
+def test_total_memory_cap_retries_same_chunk_after_expiry_frees_bytes():
     now = [0.0]
     manager = ReassemblySessionManager(
         authentication_key=AUTH_KEY,
         request_retry=lambda _message_id, _missing: None,
         request_full_buffer=lambda _message_id: b"fallback",
-        max_total_bytes=5,
+        max_total_bytes=150,
         session_ttl_seconds=2.0,
         clock=lambda: now[0],
     )
@@ -447,12 +451,12 @@ def test_total_byte_cap_retries_same_chunk_after_expiry_frees_bytes():
 
     with pytest.raises(ValueError, match="total active payload bytes"):
         manager.add_chunk(candidate)
-    assert _held_payload_bytes(manager) == 4
+    assert _held_accounted_bytes(manager) == 100
 
     now[0] = 2.0
     assert manager.add_chunk(candidate) is None
     assert set(manager.sessions) == {"candidate"}
-    assert _held_payload_bytes(manager) == 2
+    assert _held_accounted_bytes(manager) == 98
 
 
 def test_identical_duplicate_near_total_byte_cap_does_not_count_twice():
@@ -460,15 +464,15 @@ def test_identical_duplicate_near_total_byte_cap_does_not_count_twice():
         authentication_key=AUTH_KEY,
         request_retry=lambda _message_id, _missing: None,
         request_full_buffer=lambda _message_id: b"fallback",
-        max_total_bytes=2,
+        max_total_bytes=98,
         clock=lambda: 0.0,
     )
     chunk = _chunk("duplicate", 0, 2, b"xy")
 
     assert manager.add_chunk(chunk) is None
-    assert _held_payload_bytes(manager) == 2
+    assert _held_accounted_bytes(manager) == 98
     assert manager.add_chunk(chunk) is None
-    assert _held_payload_bytes(manager) == 2
+    assert _held_accounted_bytes(manager) == 98
 
 
 def test_completion_releases_bytes_for_another_message():
@@ -476,17 +480,17 @@ def test_completion_releases_bytes_for_another_message():
         authentication_key=AUTH_KEY,
         request_retry=lambda _message_id, _missing: None,
         request_full_buffer=lambda _message_id: b"fallback",
-        max_total_bytes=4,
+        max_total_bytes=196,
         clock=lambda: 0.0,
     )
 
     assert manager.add_chunk(_chunk("complete", 0, 2, b"ab")) is None
-    assert _held_payload_bytes(manager) == 2
+    assert _held_accounted_bytes(manager) == 98
     assert manager.add_chunk(_chunk("complete", 1, 2, b"cd")) == b"abcd"
     assert manager.sessions == {}
-    assert _held_payload_bytes(manager) == 0
+    assert _held_accounted_bytes(manager) == 0
     assert manager.add_chunk(_chunk("next", 0, 1, b"1234")) == b"1234"
-    assert _held_payload_bytes(manager) == 0
+    assert _held_accounted_bytes(manager) == 0
 
 
 def test_bad_tag_does_not_change_total_payload_bytes():
@@ -494,20 +498,130 @@ def test_bad_tag_does_not_change_total_payload_bytes():
         authentication_key=AUTH_KEY,
         request_retry=lambda _message_id, _missing: None,
         request_full_buffer=lambda _message_id: b"fallback",
-        max_total_bytes=3,
+        max_total_bytes=100,
         clock=lambda: 0.0,
     )
     assert manager.add_chunk(_chunk("valid", 0, 2, b"ab")) is None
     before = manager._session_activity.copy()
+    accounted_before = _held_accounted_bytes(manager)
     bad = _chunk("bad", 0, 2, b"xxxx").to_dict()
     bad["auth_tag"] = "0" * 64
 
     with pytest.raises(ValueError, match="authentication failed"):
         manager.add_chunk(bad)
 
-    assert _held_payload_bytes(manager) == 2
+    assert _held_accounted_bytes(manager) == accounted_before == 98
     assert set(manager.sessions) == {"valid"}
     assert manager._session_activity == before
+
+
+def test_zero_payload_chunk_overhead_counts_toward_aggregate_cap():
+    limit = 4 * EXPECTED_OVERHEAD_PER_CHUNK + EXPECTED_OVERHEAD_PER_CHUNK - 1
+    manager = ReassemblySessionManager(
+        authentication_key=AUTH_KEY,
+        request_retry=lambda _message_id, _missing: None,
+        request_full_buffer=lambda _message_id: b"fallback",
+        max_total_bytes=limit,
+        clock=lambda: 0.0,
+    )
+    for sequence in range(4):
+        assert manager.add_chunk(_chunk("empty-heavy", sequence, 6, b"")) is None
+    assert _held_accounted_bytes(manager) == 4 * EXPECTED_OVERHEAD_PER_CHUNK
+    received_before = manager.sessions["empty-heavy"].reassembler.received.copy()
+    accounted_before = _held_accounted_bytes(manager)
+
+    with pytest.raises(ValueError, match="total active payload bytes"):
+        manager.add_chunk(_chunk("empty-heavy", 4, 6, b""))
+
+    assert _held_accounted_bytes(manager) == accounted_before
+    assert manager.sessions["empty-heavy"].reassembler.received == received_before
+
+
+def test_few_large_chunks_complete_under_same_aggregate_cap():
+    limit = 5 * EXPECTED_OVERHEAD_PER_CHUNK - 1
+    manager = ReassemblySessionManager(
+        authentication_key=AUTH_KEY,
+        request_retry=lambda _message_id, _missing: None,
+        request_full_buffer=lambda _message_id: b"fallback",
+        max_total_bytes=limit,
+        clock=lambda: 0.0,
+    )
+
+    assert manager.add_chunk(_chunk("large-valid", 0, 2, b"a" * 64)) is None
+    assert _held_accounted_bytes(manager) == EXPECTED_OVERHEAD_PER_CHUNK + 64
+    assert manager.add_chunk(_chunk("large-valid", 1, 2, b"b" * 64)) == (
+        b"a" * 64 + b"b" * 64
+    )
+    assert _held_accounted_bytes(manager) == 0
+
+
+def test_expiry_and_failed_first_chunk_release_accounted_overhead():
+    now = [0.0]
+    manager = ReassemblySessionManager(
+        authentication_key=AUTH_KEY,
+        request_retry=lambda _message_id, _missing: None,
+        request_full_buffer=lambda _message_id: b"fallback",
+        session_ttl_seconds=1.0,
+        max_total_bytes=1_000,
+        clock=lambda: now[0],
+    )
+    assert manager.add_chunk(_chunk("will-expire", 0, 2, b"x")) is None
+    accounted_before = _held_accounted_bytes(manager)
+    bad_first = _chunk("bad-first", 0, 2, b"y").to_dict()
+    bad_first["auth_tag"] = "0" * 64
+    with pytest.raises(ValueError, match="authentication failed"):
+        manager.add_chunk(bad_first)
+    assert _held_accounted_bytes(manager) == accounted_before
+    assert set(manager.sessions) == {"will-expire"}
+
+    now[0] = 1.0
+    assert manager.add_chunk(_chunk("complete-after-expiry", 0, 1, b"done")) == b"done"
+    assert manager.sessions == {}
+    assert _held_accounted_bytes(manager) == 0
+
+
+def test_randomized_manager_memory_matches_active_sessions():
+    rng = random.Random(20261005)
+    manager = ReassemblySessionManager(
+        authentication_key=AUTH_KEY,
+        request_retry=lambda _message_id, _missing: None,
+        request_full_buffer=lambda _message_id: b"fallback",
+        max_sessions=32,
+        max_total_bytes=1_000_000,
+        session_ttl_seconds=1_000.0,
+        clock=lambda: 0.0,
+    )
+    chunks_by_message = {}
+    next_sequence = {}
+
+    for operation in range(500):
+        message_id = f"random-{rng.randrange(24)}"
+        existing = chunks_by_message.setdefault(message_id, [])
+        if existing and rng.random() < 0.25:
+            chunk = rng.choice(existing)
+        else:
+            sequence = next_sequence.get(message_id, 0)
+            next_sequence[message_id] = sequence + 1
+            payload_size = rng.choice((0, 1, 2, 8, 16))
+            payload = (
+                f"{operation:0{payload_size}d}"[-payload_size:].encode("ascii")
+                if payload_size
+                else b""
+            )
+            chunk = _chunk(message_id, sequence, 10_000, payload)
+            existing.append(chunk)
+
+        assert manager.add_chunk(chunk) is None
+        assert manager.active_memory_bytes == _held_accounted_bytes(manager)
+        assert manager.active_memory_bytes <= manager.max_total_bytes
+
+    assert sum(len(chunks) for chunks in chunks_by_message.values()) > 0
+
+
+def test_manager_exposes_selected_fixed_chunk_overhead():
+    import reassembler
+
+    assert reassembler.OVERHEAD_PER_CHUNK == EXPECTED_OVERHEAD_PER_CHUNK
 
 
 @pytest.mark.parametrize("limit", [0, -1])
