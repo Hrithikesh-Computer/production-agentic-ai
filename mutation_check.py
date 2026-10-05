@@ -157,6 +157,14 @@ PROTOCOL_POLICY = {
     ),
 }
 PROTOCOL_REASSEMBLER = {
+    "manager: duplicate refreshes idle TTL": (
+        "elif not duplicate:",
+        "else:",
+    ),
+    "manager: TTL boundary is strict": (
+        "if now - last_activity >= self.session_ttl_seconds",
+        "if now - last_activity > self.session_ttl_seconds",
+    ),
     "reassembler: remove message_id consistency check": (
         '        if self.message_id is not None and envelope.message_id != self.message_id:\n            raise ValueError("message_id cannot change during reassembly")\n',
         "",
@@ -174,12 +182,44 @@ PROTOCOL_REASSEMBLER = {
         "",
     ),
     "manager: skip aggregate byte cap": (
-        "        if active_payload_bytes + added_bytes > self.max_total_bytes:\n",
+        "        if (\n            active_memory_bytes + added_bytes + chunk_overhead_bytes\n            > self.max_total_bytes\n        ):\n",
         "        if False:\n",
+    ),
+    "manager: drop overhead from aggregate total": (
+        "active_memory_bytes + added_bytes + chunk_overhead_bytes",
+        "active_memory_bytes + added_bytes",
+    ),
+    "manager: overhead constant is zero": (
+        "OVERHEAD_PER_CHUNK = 96",
+        "OVERHEAD_PER_CHUNK = 0",
+    ),
+    "manager: charge identical duplicate overhead": (
+        "chunk_overhead_bytes = 0 if duplicate else OVERHEAD_PER_CHUNK",
+        "chunk_overhead_bytes = OVERHEAD_PER_CHUNK",
+    ),
+    "manager: skip overhead for zero-byte chunk": (
+        "chunk_overhead_bytes = 0 if duplicate else OVERHEAD_PER_CHUNK",
+        "chunk_overhead_bytes = 0 if duplicate or not added_bytes else OVERHEAD_PER_CHUNK",
+    ),
+    "manager: retain completed session overhead": (
+        "            if session.reassembler.completed:\n                self.sessions.pop(envelope.message_id, None)\n                self._session_activity.pop(envelope.message_id, None)\n",
+        "            if session.reassembler.completed:\n                self._session_activity.pop(envelope.message_id, None)\n",
     ),
     "reassembler: double-count identical duplicate": (
         "            return envelope, payload, 0, True\n",
         "            return envelope, payload, len(payload), True\n",
+    ),
+    "receiver: skip session-cap outcome": (
+        "            emit_receiver_outcome(ReceiverOutcome.SESSION_CAP_REJECTED)\n",
+        "",
+    ),
+    "receiver: wrong outcome for bad authentication tag": (
+        "emit_receiver_outcome(ReceiverOutcome.AUTHENTICATION_REJECTED)",
+        "emit_receiver_outcome(ReceiverOutcome.ENVELOPE_INTEGRITY_REJECTED)",
+    ),
+    "receiver: report eviction for tombstoned replay": (
+        "            raise ValueError(\"message_id is tombstoned; replay rejected\")\n",
+        "            emit_receiver_outcome(ReceiverOutcome.TOMBSTONE_EVICTED)\n            raise ValueError(\"message_id is tombstoned; replay rejected\")\n",
     ),
 }
 PROTOCOL_KEY = {
@@ -189,6 +229,10 @@ PROTOCOL_KEY = {
     ),
 }
 NDJSON_STRICT = {
+    "ndjson: poison outcome for rejected non-bytes input": (
+        '        if not isinstance(data, bytes):\n            raise TypeError("data must be bytes")\n',
+        '        if not isinstance(data, bytes):\n            emit_receiver_outcome(ReceiverOutcome.NDJSON_DECODER_POISONED)\n            raise TypeError("data must be bytes")\n',
+    ),
     "ndjson: accept duplicate object names": (
         '        if key in result:\n            raise NDJSONError(f"duplicate JSON object name: {key!r}")\n',
         '        if False:\n            raise NDJSONError(f"duplicate JSON object name: {key!r}")\n',
