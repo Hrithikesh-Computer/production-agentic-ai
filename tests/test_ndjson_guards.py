@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ndjson_stream
 import pytest
 from ndjson_stream import NDJSONDecoder, encode_record
 
@@ -17,11 +18,14 @@ def test_feeding_a_finished_decoder_raises() -> None:
         decoder.feed(b"{}\n")
 
 
-def test_non_bytes_input_is_rejected_without_poisoning() -> None:
+def test_non_bytes_input_is_rejected_without_poisoning(monkeypatch) -> None:
+    outcomes: list[object] = []
+    monkeypatch.setattr(ndjson_stream, "emit_receiver_outcome", outcomes.append)
     decoder = NDJSONDecoder()
     with pytest.raises(TypeError, match="bytes"):
         decoder.feed("{}\n")  # type: ignore[arg-type]
     assert not decoder.failed
+    assert outcomes == []
     assert decoder.feed(b'{"a":1}\n') == [{"a": 1}]
 
 

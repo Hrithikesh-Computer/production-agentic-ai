@@ -110,6 +110,24 @@ def test_authentication_rejection_emits_no_envelope_data(monkeypatch):
     assert events == [metrics.ReceiverOutcome.AUTHENTICATION_REJECTED]
 
 
+def test_tombstoned_replay_rejection_emits_no_eviction_outcome(monkeypatch):
+    events = []
+    monkeypatch.setattr(reassembler_module, "emit_receiver_outcome", events.append)
+    manager = _manager()
+    completed = _chunk("replay", 0, 1, b"complete")
+    assert manager.add_chunk(completed) == b"complete"
+    sessions_before = manager.sessions.copy()
+    tombstones_before = manager.tombstones.copy()
+    events.clear()
+
+    with pytest.raises(ValueError, match="tombstoned"):
+        manager.add_chunk(completed)
+
+    assert manager.sessions == sessions_before
+    assert manager.tombstones == tombstones_before
+    assert events == []
+
+
 def test_checksum_rejection_emits_fixed_integrity_outcome(monkeypatch):
     events = []
     monkeypatch.setattr(reassembler_module, "emit_receiver_outcome", events.append)
