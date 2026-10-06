@@ -17,10 +17,12 @@ from envelope import (
     checksum,
 )
 from policy import DeliveryPolicy
+from receiver_outcomes import ReceiverOutcome, emit_receiver_outcome
 
 DEFAULT_MAX_CHUNKS = MAX_ENVELOPE_CHUNKS
 DEFAULT_MAX_PAYLOAD_BYTES = MAX_ENVELOPE_PAYLOAD_BYTES
 DEFAULT_MAX_TOTAL_BYTES = 268_435_456
+OVERHEAD_PER_CHUNK = 96
 
 
 @dataclass
@@ -71,6 +73,7 @@ class Reassembler:
         payload = envelope.payload_bytes()
 
         if envelope.total_chunks > self.max_chunks:
+            emit_receiver_outcome(ReceiverOutcome.MESSAGE_LIMIT_REJECTED)
             raise ValueError(
                 f"total_chunks exceeds configured maximum of {self.max_chunks}"
             )
@@ -82,8 +85,10 @@ class Reassembler:
             raise ValueError("message_id cannot change during reassembly")
 
         if checksum(payload) != envelope.checksum.lower():
+            emit_receiver_outcome(ReceiverOutcome.ENVELOPE_INTEGRITY_REJECTED)
             raise ValueError(f"checksum mismatch on chunk {sequence}")
         if not envelope.verify_authentication(self.authentication_key):
+            emit_receiver_outcome(ReceiverOutcome.AUTHENTICATION_REJECTED)
             raise ValueError(f"authentication failed on chunk {sequence}")
 
         existing = self.received.get(sequence)
@@ -93,6 +98,7 @@ class Reassembler:
             return envelope, payload, 0, True
 
         if self._received_bytes + len(payload) > self.max_payload_bytes:
+            emit_receiver_outcome(ReceiverOutcome.MESSAGE_LIMIT_REJECTED)
             raise ValueError(
                 f"reassembled payload exceeds configured maximum of "
                 f"{self.max_payload_bytes} bytes"
@@ -198,7 +204,11 @@ class ReassemblySession:
         return result
 
     def poll_timeout(self, now: float | None = None) -> bytes | None:
-        """Request missing chunks, then replace unsafe partial state with full data."""
+        """Retry missing chunks, then replace unsafe partial state with full data.
+
+        Callback exceptions propagate without advancing retry or fallback state.
+        A later poll invokes the callback again, so callbacks must be idempotent.
+        """
         if self.fallback_result is not None or self.reassembler.completed:
             return None
         current_time = self.clock() if now is None else now
@@ -206,13 +216,22 @@ class ReassemblySession:
             return None
 
         if self.retries < self.policy.max_retries:
-            self.request_retry(self.message_id, self.reassembler.missing())
+            try:
+                self.request_retry(self.message_id, self.reassembler.missing())
+            except Exception:
+                emit_receiver_outcome(ReceiverOutcome.RETRY_CALLBACK_FAILED)
+                raise
             self.retries += 1
             self._deadline = current_time + self.policy.timeout_seconds
             return None
 
-        full_payload = self.request_full_buffer(self.message_id)
+        try:
+            full_payload = self.request_full_buffer(self.message_id)
+        except Exception:
+            emit_receiver_outcome(ReceiverOutcome.FULL_BUFFER_CALLBACK_FAILED)
+            raise
         if not isinstance(full_payload, bytes):
+            emit_receiver_outcome(ReceiverOutcome.FULL_BUFFER_CALLBACK_FAILED)
             raise TypeError("full-buffer callback must return bytes")
         self.fallback_result = full_payload
         return full_payload
@@ -220,7 +239,12 @@ class ReassemblySession:
 
 @dataclass
 class ReassemblySessionManager:
-    """Route interleaved chunks to independent message-scoped sessions."""
+    """Route interleaved chunks to independent message-scoped sessions.
+
+    This manager is not thread-safe. Concurrent calls for the same message ID
+    can silently lose a chunk; callers sharing one manager across threads must
+    serialize access.
+    """
 
     authentication_key: bytes = field(repr=False)
     request_retry: Callable[[str, list[int]], None]
@@ -283,6 +307,7 @@ class ReassemblySessionManager:
     def _evict_expired_sessions(self, now: float) -> None:
         expired = self._expired_session_ids(now)
         for message_id in expired:
+            emit_receiver_outcome(ReceiverOutcome.SESSION_EXPIRED)
             self.sessions.pop(message_id, None)
             self._session_activity.pop(message_id, None)
 
@@ -298,7 +323,16 @@ class ReassemblySessionManager:
     def _remember_completed(self, message_id: str, now: float) -> None:
         while len(self.tombstones) >= self.max_tombstones:
             self.tombstones.popitem(last=False)
+            emit_receiver_outcome(ReceiverOutcome.TOMBSTONE_EVICTED)
         self.tombstones[message_id] = now + self.tombstone_ttl_seconds
+
+    @property
+    def active_memory_bytes(self) -> int:
+        return sum(
+            session.reassembler._received_bytes
+            + OVERHEAD_PER_CHUNK * len(session.reassembler.received)
+            for session in self.sessions.values()
+        )
 
     def add_chunk(self, chunk: WireEnvelope | Mapping[str, object]) -> bytes | None:
         envelope = chunk
@@ -332,13 +366,19 @@ class ReassemblySessionManager:
                 clock=self.clock,
             )
 
-        _, _, added_bytes, _ = session.reassembler._prepare_chunk(envelope)
-        active_payload_bytes = sum(
+        _, _, added_bytes, duplicate = session.reassembler._prepare_chunk(envelope)
+        active_memory_bytes = sum(
             active.reassembler._received_bytes
+            + OVERHEAD_PER_CHUNK * len(active.reassembler.received)
             for message_id, active in self.sessions.items()
             if message_id not in expired_sessions
         )
-        if active_payload_bytes + added_bytes > self.max_total_bytes:
+        chunk_overhead_bytes = 0 if duplicate else OVERHEAD_PER_CHUNK
+        if (
+            active_memory_bytes + added_bytes + chunk_overhead_bytes
+            > self.max_total_bytes
+        ):
+            emit_receiver_outcome(ReceiverOutcome.ACTIVE_PAYLOAD_CAP_REJECTED)
             raise ValueError(
                 "maximum total active payload bytes exceeded "
                 f"({self.max_total_bytes})"
@@ -347,6 +387,7 @@ class ReassemblySessionManager:
         self._evict_expired_sessions(now)
         self._purge_expired_tombstones(now)
         if created and len(self.sessions) >= self.max_sessions:
+            emit_receiver_outcome(ReceiverOutcome.SESSION_CAP_REJECTED)
             raise ValueError(
                 f"maximum reassembly sessions reached ({self.max_sessions})"
             )
@@ -359,7 +400,7 @@ class ReassemblySessionManager:
                 self.sessions.pop(envelope.message_id, None)
                 self._session_activity.pop(envelope.message_id, None)
                 self._remember_completed(envelope.message_id, now)
-            else:
+            elif not duplicate:
                 self._session_activity[envelope.message_id] = now
             return result
         except Exception:

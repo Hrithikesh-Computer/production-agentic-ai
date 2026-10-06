@@ -1,16 +1,25 @@
-"""
-Metrics — the small set of signals referenced in the article's
-Observability section. Kept as a plain dataclass + emit function so it
-can be wired into whatever metrics backend a real deployment uses
-(StatsD, OpenTelemetry, Prometheus, etc.) without touching the
-delivery logic itself.
-"""
+"""Sender metrics and fixed-cardinality receiver outcomes for the local slice."""
 
 from __future__ import annotations
 
 import time
 from dataclasses import asdict, dataclass
 from typing import Callable
+
+from receiver_outcomes import (
+    ReceiverOutcome,
+    ReceiverOutcomeEvent,
+    emit_receiver_outcome,
+)
+
+__all__ = [
+    "DeliveryMetrics",
+    "ReceiverOutcome",
+    "ReceiverOutcomeEvent",
+    "Timer",
+    "emit",
+    "emit_receiver_outcome",
+]
 
 
 @dataclass

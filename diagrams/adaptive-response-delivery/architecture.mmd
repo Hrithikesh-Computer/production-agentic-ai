@@ -7,11 +7,12 @@ flowchart LR
         E{Large payload is JSON object?}
         F[Split top-level object members]
         G[Split valid UTF-8 at code-point boundaries]
-        H[Create CRC32 envelopes with sequence, total, merge mode]
+        H[Create HMAC-authenticated, CRC32-checksummed envelopes with sequence, total, merge mode]
         I[Return full result or yield envelope objects and mappings]
-        J[Per-message Reassembler validates CRC32, index, total, mode, and quotas]
-        J1[Contract guard: total_chunks cannot change mid-message; duplicate identical frames are ignored; conflicting duplicates are rejected; one Reassembler handles one message; UTF-8 boundaries are preserved]
+        J[Per-message Reassembler validates HMAC, CRC32, index, total, mode, and quotas]
+        J1[Contract guard: message ID and total_chunks cannot change mid-message; identical duplicates do not refresh idle TTL; conflicting duplicates are rejected; one Reassembler handles one message]
         K{All declared chunks received?}
+        K1[Caller polls timeout: retry callback requests missing indexes; after retry budget, full-buffer callback supplies fallback]
         L[Merge complete JSON object fragments]
         M[Concatenate complete payload bytes]
         N[Return complete reconstructed bytes]
@@ -22,6 +23,7 @@ flowchart LR
         P[HTTP writer or transport adapter]
         Q[Gateway and client decoder]
         R[Progressive user interface]
+        S[Absent: transport or user authentication, timeout scheduler, receiver observability]
     end
 
     A --> B --> C
@@ -32,7 +34,7 @@ flowchart LR
     F --> O
     G --> O
     H --> I --> J --> J1 --> K
-    K -->|No, keep buffering| J
+    K -->|No, keep buffering| K1 --> J
     K -->|Yes, json-object mode| L --> N
     K -->|Yes, concat mode| M --> N
     I -. envelope handoff requires an adapter .-> P

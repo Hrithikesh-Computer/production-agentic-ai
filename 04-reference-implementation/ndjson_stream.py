@@ -4,6 +4,8 @@ import json
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from receiver_outcomes import ReceiverOutcome, emit_receiver_outcome
+
 DEFAULT_MAX_RECORD_BYTES = 1_048_576
 
 
@@ -63,6 +65,10 @@ class NDJSONDecoder:
         self._failed = True
         self._pending.clear()
 
+    def _poison(self) -> None:
+        self._fail()
+        emit_receiver_outcome(ReceiverOutcome.NDJSON_DECODER_POISONED)
+
     def feed(self, data: bytes) -> list[dict[str, Any]]:
         if self._failed:
             raise DecoderFailedError("decoder failed; discard the response and retry")
@@ -99,10 +105,10 @@ class NDJSONDecoder:
                     raise NDJSONError("NDJSON records must be JSON objects")
                 records.append(value)
         except RecursionError as error:
-            self._fail()
+            self._poison()
             raise NDJSONError("JSON nesting exceeds decoder capacity") from error
         except Exception:
-            self._fail()
+            self._poison()
             raise
         return records
 
@@ -113,7 +119,7 @@ class NDJSONDecoder:
             return
         self._finished = True
         if self._pending:
-            self._fail()
+            self._poison()
             raise IncompleteRecordError("stream ended inside an NDJSON record")
 
     def discard(self) -> None:

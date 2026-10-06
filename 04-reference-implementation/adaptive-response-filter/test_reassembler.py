@@ -84,6 +84,50 @@ def test_hmac_rejects_message_id_tampering():
         Reassembler(authentication_key=AUTH_KEY).add_chunk(envelope)
 
 
+def test_reassembler_rejects_message_id_change_without_mutating_state():
+    reassembler = Reassembler(authentication_key=AUTH_KEY)
+    first = WireEnvelope.from_bytes(
+        sequence=0,
+        total_chunks=2,
+        payload=b"first",
+        is_final=False,
+        message_id="first-message",
+        authentication_key=AUTH_KEY,
+        merge_mode="concat",
+    )
+    different_id = WireEnvelope.from_bytes(
+        sequence=1,
+        total_chunks=2,
+        payload=b"second",
+        is_final=True,
+        message_id="different-message",
+        authentication_key=AUTH_KEY,
+        merge_mode="concat",
+    )
+
+    assert reassembler.add_chunk(first) is None
+    state_before = (
+        reassembler.received.copy(),
+        reassembler.total_chunks,
+        reassembler._received_bytes,
+        reassembler.merge_mode,
+        reassembler.message_id,
+        reassembler.missing(),
+    )
+
+    with pytest.raises(ValueError, match="message_id"):
+        reassembler.add_chunk(different_id)
+
+    assert (
+        reassembler.received,
+        reassembler.total_chunks,
+        reassembler._received_bytes,
+        reassembler.merge_mode,
+        reassembler.message_id,
+        reassembler.missing(),
+    ) == state_before
+
+
 def test_reassembler_rejects_authentication_key_shorter_than_16_bytes():
     with pytest.raises(ValueError, match="16"):
         Reassembler(authentication_key=b"x" * 15)

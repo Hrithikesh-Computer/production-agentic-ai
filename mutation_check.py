@@ -60,7 +60,10 @@ AUTH = {
     "session: skip constraint": ("        if action in constraint.actions and constraint.actions <= combined:", "        if False:"),
     "session: any-member match": ("constraint.actions <= combined", "bool(constraint.actions & combined)"),
     "session: drop individual denial": ('    if decision.effect == "deny":\n        return decision\n    combined', "    combined"),
-    "session: refer becomes allow": ('    return decision\n', '    return Decision("allow", "session allowed")\n'),
+    "session: refer becomes allow": (
+        "    for constraint in aggregation_constraints:\n        if action in constraint.actions and constraint.actions <= combined:\n            return Decision(\"deny\", constraint.reason)\n    return decision\n",
+        "    for constraint in aggregation_constraints:\n        if action in constraint.actions and constraint.actions <= combined:\n            return Decision(\"deny\", constraint.reason)\n    return Decision(\"allow\", \"session allowed\")\n",
+    ),
     "ticket: use refer becomes allow": ('    return current_decision\n\n\ndef evaluate_in_session', '    return Decision("allow", "ticket valid")\n\n\ndef evaluate_in_session'),
 }
 WORKFLOW = {
@@ -74,7 +77,10 @@ WORKFLOW = {
     ),
     "workflow: skip actor binding": ('        if actor != proposal.requester:\n', '        if False:\n'),
     "workflow: skip approved-state check": ('        if record.status != "approved":\n', '        if False:\n'),
-    "workflow: ignore referral handling": ('        if decision.effect == "refer":\n', '        if False:\n'),
+    "workflow: ignore referral handling": (
+        '            raise PermissionError(decision.reason)\n        if decision.effect == "refer":\n',
+        '            raise PermissionError(decision.reason)\n        if False:\n',
+    ),
     "workflow: skip reviewer recheck": ('            if reviewer_decision.effect != "allow":\n', '            if False:\n'),
     "workflow: skip execution expiry": (
         '        if current >= proposal.expires_at:\n            record.status = "expired"\n            self._audit(\n                "proposal_expired", actor=actor, proposal=proposal, at=current\n',
@@ -114,7 +120,10 @@ WORKFLOW = {
     ),
 }
 NDJSON = {
-    "no poison on error": ("        except Exception:\n            self._fail()\n            raise", "        except Exception:\n            raise"),
+    "no poison on error": (
+        "        except Exception:\n            self._poison()\n            raise",
+        "        except Exception:\n            raise",
+    ),
     "feed ignores failed flag": ('        if self._failed:\n            raise DecoderFailedError("decoder failed; discard the response and retry")\n        if self._finished:\n            raise ValueError("decoder is finished")', '        if self._finished:\n            raise ValueError("decoder is finished")'),
     "finish ignores failed flag": ('        if self._failed:\n            raise DecoderFailedError("decoder failed; discard the response and retry")\n        if self._finished:\n            return', "        if self._finished:\n            return"),
     "no max when no newline": (
@@ -135,7 +144,10 @@ NDJSON = {
         '                self._pending.extend(fragment)\n                line = bytes(self._pending)',
         '                self._pending = bytearray(fragment)\n                line = bytes(self._pending)',
     ),
-    "finish ignores partial": ('        if self._pending:\n            self._fail()\n            raise IncompleteRecordError("stream ended inside an NDJSON record")\n', "        pass\n"),
+    "finish ignores partial": (
+        '        if self._pending:\n            self._poison()\n            raise IncompleteRecordError("stream ended inside an NDJSON record")\n',
+        '        if self._pending:\n            raise IncompleteRecordError("stream ended inside an NDJSON record")\n',
+    ),
     "discard does not poison": ("        self._fail()\n        self._finished = True\n\n\ndef encode_record", "        self._finished = True\n\n\ndef encode_record"),
     "blank lines not skipped": ("                if not line.strip():\n                    continue\n", ""),
     "ensure_ascii on": ("ensure_ascii=False", "ensure_ascii=True"),
@@ -151,6 +163,18 @@ PROTOCOL_POLICY = {
     ),
 }
 PROTOCOL_REASSEMBLER = {
+    "manager: duplicate refreshes idle TTL": (
+        "elif not duplicate:",
+        "else:",
+    ),
+    "manager: TTL boundary is strict": (
+        "if now - last_activity >= self.session_ttl_seconds",
+        "if now - last_activity > self.session_ttl_seconds",
+    ),
+    "reassembler: remove message_id consistency check": (
+        '        if self.message_id is not None and envelope.message_id != self.message_id:\n            raise ValueError("message_id cannot change during reassembly")\n',
+        "",
+    ),
     "reassembler: remove conflicting-duplicate rejection": (
         '            if existing != payload:\n                raise ValueError(f"conflicting duplicate chunk {sequence}")\n',
         "",
@@ -160,16 +184,48 @@ PROTOCOL_REASSEMBLER = {
         "",
     ),
     "reassembler: skip CRC check": (
-        '        if checksum(payload) != envelope.checksum.lower():\n            raise ValueError(f"checksum mismatch on chunk {sequence}")\n',
+        '        if checksum(payload) != envelope.checksum.lower():\n            emit_receiver_outcome(ReceiverOutcome.ENVELOPE_INTEGRITY_REJECTED)\n            raise ValueError(f"checksum mismatch on chunk {sequence}")\n',
         "",
     ),
     "manager: skip aggregate byte cap": (
-        "        if active_payload_bytes + added_bytes > self.max_total_bytes:\n",
+        "        if (\n            active_memory_bytes + added_bytes + chunk_overhead_bytes\n            > self.max_total_bytes\n        ):\n",
         "        if False:\n",
+    ),
+    "manager: drop overhead from aggregate total": (
+        "active_memory_bytes + added_bytes + chunk_overhead_bytes",
+        "active_memory_bytes + added_bytes",
+    ),
+    "manager: overhead constant is zero": (
+        "OVERHEAD_PER_CHUNK = 96",
+        "OVERHEAD_PER_CHUNK = 0",
+    ),
+    "manager: charge identical duplicate overhead": (
+        "chunk_overhead_bytes = 0 if duplicate else OVERHEAD_PER_CHUNK",
+        "chunk_overhead_bytes = OVERHEAD_PER_CHUNK",
+    ),
+    "manager: skip overhead for zero-byte chunk": (
+        "chunk_overhead_bytes = 0 if duplicate else OVERHEAD_PER_CHUNK",
+        "chunk_overhead_bytes = 0 if duplicate or not added_bytes else OVERHEAD_PER_CHUNK",
+    ),
+    "manager: retain completed session overhead": (
+        "            if session.reassembler.completed:\n                self.sessions.pop(envelope.message_id, None)\n                self._session_activity.pop(envelope.message_id, None)\n",
+        "            if session.reassembler.completed:\n                self._session_activity.pop(envelope.message_id, None)\n",
     ),
     "reassembler: double-count identical duplicate": (
         "            return envelope, payload, 0, True\n",
         "            return envelope, payload, len(payload), True\n",
+    ),
+    "receiver: skip session-cap outcome": (
+        "            emit_receiver_outcome(ReceiverOutcome.SESSION_CAP_REJECTED)\n",
+        "",
+    ),
+    "receiver: wrong outcome for bad authentication tag": (
+        "emit_receiver_outcome(ReceiverOutcome.AUTHENTICATION_REJECTED)",
+        "emit_receiver_outcome(ReceiverOutcome.ENVELOPE_INTEGRITY_REJECTED)",
+    ),
+    "receiver: report eviction for tombstoned replay": (
+        "            raise ValueError(\"message_id is tombstoned; replay rejected\")\n",
+        "            emit_receiver_outcome(ReceiverOutcome.TOMBSTONE_EVICTED)\n            raise ValueError(\"message_id is tombstoned; replay rejected\")\n",
     ),
 }
 PROTOCOL_KEY = {
@@ -179,6 +235,10 @@ PROTOCOL_KEY = {
     ),
 }
 NDJSON_STRICT = {
+    "ndjson: poison outcome for rejected non-bytes input": (
+        '        if not isinstance(data, bytes):\n            raise TypeError("data must be bytes")\n',
+        '        if not isinstance(data, bytes):\n            emit_receiver_outcome(ReceiverOutcome.NDJSON_DECODER_POISONED)\n            raise TypeError("data must be bytes")\n',
+    ),
     "ndjson: accept duplicate object names": (
         '        if key in result:\n            raise NDJSONError(f"duplicate JSON object name: {key!r}")\n',
         '        if False:\n            raise NDJSONError(f"duplicate JSON object name: {key!r}")\n',
@@ -188,10 +248,32 @@ NDJSON_STRICT = {
         "",
     ),
     "ndjson: leak RecursionError": (
-        '        except RecursionError as error:\n            self._fail()\n            raise NDJSONError("JSON nesting exceeds decoder capacity") from error\n',
-        '        except RecursionError:\n            self._fail()\n            raise\n',
+        '        except RecursionError as error:\n            self._poison()\n            raise NDJSONError("JSON nesting exceeds decoder capacity") from error\n',
+        '        except RecursionError:\n            self._poison()\n            raise\n',
     ),
 }
+RECEIVER_OUTCOMES = {
+    "receiver outcomes: guard removed": (
+        "    try:\n        sink(ReceiverOutcomeEvent(outcome).as_dict())\n    except Exception:\n        pass\n",
+        "    sink(ReceiverOutcomeEvent(outcome).as_dict())\n",
+    ),
+    "receiver outcomes: guard widened to BaseException": (
+        "    except Exception:\n",
+        "    except BaseException:\n",
+    ),
+}
+
+
+def classify_mutant_result(returncode: int | None, output: str) -> str:
+    if returncode is None or returncode >= 2 or returncode == 5:
+        return "harness error"
+    if "ERROR collecting" in output or "ImportError" in output or "ModuleNotFoundError" in output:
+        return "harness error"
+    if returncode == 0:
+        return "survived"
+    if returncode == 1 and ("FAILED " in output or "ERROR " in output):
+        return "killed"
+    return "harness error"
 
 
 def run_module(
@@ -210,69 +292,126 @@ def run_module(
     killed: list[str] = []
     survived: list[str] = []
     skipped: list[str] = []
+    harness_errors: list[str] = []
+    harness_reasons: dict[str, str] = {}
+    killing_tests: dict[str, str] = {}
     for label, (old, new) in mutants.items():
-        if old not in source:
+        if source.count(old) != 1:
             skipped.append(label)
             continue
         work = Path(tempfile.mkdtemp())
         try:
             shutil.copytree(tests, work / "tests")
-            (work / "impl").mkdir()
-            for sibling in ("authority_policy.py", "ndjson_stream.py"):
-                if (impl / sibling).exists():
-                    shutil.copy(impl / sibling, work / "impl" / sibling)
+            repo_root = Path.cwd()
+            for config_name in ("pyproject.toml", "pytest.ini", "tox.ini", "setup.cfg"):
+                config = repo_root / config_name
+                if config.is_file():
+                    shutil.copy2(config, work / config_name)
             test_paths = [str(work / "tests")]
-            python_paths = [str(work / "impl")]
+            python_paths: list[str] = []
+            copied_impl = work / impl
+            if impl.is_dir() and copied_impl != work / "impl":
+                shutil.copytree(impl, copied_impl, dirs_exist_ok=True)
+                python_paths.append(str(copied_impl))
+                shutil.copy2(
+                    Path(__file__).resolve(), copied_impl / "mutation_check.py"
+                )
             if source_dir is not None:
                 copied_source_dir = work / source_dir
-                copied_source_dir.mkdir(parents=True, exist_ok=True)
+                shutil.copytree(source_dir, copied_source_dir, dirs_exist_ok=True)
                 for support_file in support_files:
                     shutil.copy(source_dir / support_file, copied_source_dir / support_file)
-                for extra_test in extra_tests:
-                    shutil.copy(source_dir / extra_test, copied_source_dir / extra_test)
-                    test_paths.append(str(copied_source_dir / extra_test))
+                for index, extra_test in enumerate(extra_tests):
+                    copied_test = extra_test.with_name(
+                        f"mutation_extra_{index}_{extra_test.name}"
+                    )
+                    shutil.copy(
+                        source_dir / extra_test,
+                        copied_source_dir / copied_test,
+                    )
+                    test_paths.append(str(copied_source_dir / copied_test))
                 python_paths.append(str(copied_source_dir))
                 target = copied_source_dir / name
             else:
-                target = work / "impl" / name
+                target = copied_impl / name
+            pytest_command = [
+                sys.executable,
+                "-m",
+                "pytest",
+                "-q",
+                "-x",
+                "-p",
+                "no:cacheprovider",
+                *test_paths,
+                *pytest_args,
+            ]
+            baseline = subprocess.run(
+                pytest_command,
+                cwd=work,
+                capture_output=True,
+                text=True,
+                env=os.environ | {"PYTHONPATH": os.pathsep.join(python_paths)},
+                timeout=120,
+            )
+            if baseline.returncode != 0:
+                harness_errors.append(label)
+                harness_reasons[label] = (baseline.stdout + baseline.stderr)[-800:].strip()
+                continue
+            for cache_dir in work.rglob("__pycache__"):
+                shutil.rmtree(cache_dir, ignore_errors=True)
             target.write_text(
                 source.replace(old, new, 1),
                 encoding="utf-8",
             )
             result = subprocess.run(
-                [
-                    sys.executable,
-                    "-m",
-                    "pytest",
-                    "-q",
-                    "-x",
-                    "-p",
-                    "no:cacheprovider",
-                    *test_paths,
-                    *pytest_args,
-                ],
+                pytest_command,
                 cwd=work,
                 capture_output=True,
                 text=True,
                 env=os.environ | {"PYTHONPATH": os.pathsep.join(python_paths)},
+                timeout=120,
             )
-            if result.returncode != 0:
-                killed.append(label)
-            else:
+            outcome = classify_mutant_result(
+                result.returncode, result.stdout + result.stderr
+            )
+            if outcome == "survived":
                 survived.append(label)
+            elif outcome == "killed":
+                killed.append(label)
+                failure_lines = [
+                    line
+                    for line in (result.stdout + result.stderr).splitlines()
+                    if line.startswith("FAILED ")
+                ]
+                if failure_lines:
+                    killing_tests[label] = failure_lines[-1]
+            else:
+                harness_errors.append(label)
+                harness_reasons[label] = (result.stdout + result.stderr)[-800:].strip()
+        except subprocess.TimeoutExpired:
+            harness_errors.append(label)
+            harness_reasons[label] = "pytest subprocess timed out after 120 seconds"
         finally:
             shutil.rmtree(work, ignore_errors=True)
     total = len(mutants)
     applicable = total - len(skipped)
     print(
         f"{name}: applicable={applicable}/{total}, killed={len(killed)}, "
-        f"survived={len(survived)}, not_applicable={len(skipped)}"
+        f"survived={len(survived)}, not_applicable={len(skipped)}, "
+        f"harness_errors={len(harness_errors)}"
     )
     for label in survived:
         print(f"   SURVIVED: {label}")
     for label in skipped:
         print(f"   NOT APPLICABLE (source changed): {label}")
-    return len(survived) + len(skipped)
+    for label in harness_errors:
+        print(f"   HARNESS ERROR: {label}")
+        reason = harness_reasons.get(label, "")
+        if reason:
+            print(f"   HARNESS REASON: {label}: {reason}")
+    for label, test in killing_tests.items():
+        print(f"   KILLING TEST: {label}: {test}")
+    return len(survived) + len(skipped) + len(harness_errors)
 
 
 def main() -> None:
@@ -322,6 +461,7 @@ def main() -> None:
             "test_envelope.py",
             "test_reassembler.py",
             "test_reassembly_session.py",
+            "test_receiver_observability.py",
         )
     )
     protocol_support = tuple(
@@ -377,6 +517,13 @@ def main() -> None:
         args.tests,
         "ndjson_stream.py",
         NDJSON_STRICT,
+    )
+    failures += run_module(
+        args.impl,
+        protocol_dir,
+        "receiver_outcomes.py",
+        RECEIVER_OUTCOMES,
+        pytest_args=("tests/test_receiver_observability.py",),
     )
     failures += run_module(
         args.impl,
