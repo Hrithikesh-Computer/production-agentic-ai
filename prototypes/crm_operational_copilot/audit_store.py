@@ -103,6 +103,17 @@ class AuditStore:
             for row in rows
         ]
 
+    def for_execution(self, execution_id: str) -> list[AuditEvent]:
+        rows = self.connection.execute(
+            """SELECT * FROM audit_events WHERE execution_id = ?
+ORDER BY event_ts, audit_id""",
+            (execution_id,),
+        ).fetchall()
+        return [
+            AuditEvent(**(dict(row) | {"reconciled": bool(row["reconciled"])}))
+            for row in rows
+        ]
+
     def mark_reconciled(self, audit_id: str) -> bool:
         cursor = self.connection.execute(
             "UPDATE audit_events SET reconciled = 1 WHERE audit_id = ?",

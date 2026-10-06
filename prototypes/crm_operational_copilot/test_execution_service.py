@@ -186,3 +186,79 @@ def test_audit_failure_after_crm_write_returns_unresolved_not_success(tmp_path) 
     assert crm.get_record("CUST-1").record_version == 2
     assert len(crm.ledger_rows()) == 1
     assert audit.count() == 0
+
+
+def test_recover_returns_executing_approval_to_approved_without_ledger(
+    tmp_path,
+) -> None:
+    service, approvals, crm, audit, *_ = _ready_system(tmp_path)
+    assert approvals.claim("approval-1", "execution-crashed", 150)
+
+    results = service.recover()
+
+    approval = approvals.get("approval-1")
+    assert len(results) == 1
+    assert results[0].status == "pending"
+    assert results[0].reason == "recovered_without_crm_write"
+    assert approval is not None and approval.state == "APPROVED"
+    assert approval.execution_id is None
+    assert crm.ledger_rows() == []
+    assert audit.count() == 0
+
+
+def test_recover_rebuilds_missing_audit_from_matching_crm_ledger(tmp_path) -> None:
+    service, approvals, crm, audit, *_ = _ready_system(tmp_path)
+    assert approvals.claim("approval-1", "execution-committed", 150)
+    ledger = crm.execute_write(
+        execution_id="execution-committed",
+        approval_id="approval-1",
+        customer_id="CUST-1",
+        field_name="account_owner",
+        proposed_value="M. Chen",
+        expected_version=1,
+        at=150,
+        approval_state="EXECUTING",
+    )
+    assert ledger is not None
+
+    results = service.recover()
+
+    approval = approvals.get("approval-1")
+    events = audit.for_execution("execution-committed")
+    assert len(results) == 1 and results[0].status == "completed"
+    assert approval is not None and approval.state == "COMPLETED"
+    assert len(events) == 1
+    assert events[0].reconciled
+    assert events[0].crm_record_version == ledger.record_version
+    assert events[0].approval_id == ledger.approval_id
+
+
+def test_recover_audit_failure_remains_unresolved_then_completes(tmp_path) -> None:
+    service, approvals, crm, audit, *_ = _ready_system(tmp_path)
+    assert approvals.claim("approval-1", "execution-audit-fails", 150)
+    ledger = crm.execute_write(
+        execution_id="execution-audit-fails",
+        approval_id="approval-1",
+        customer_id="CUST-1",
+        field_name="account_owner",
+        proposed_value="M. Chen",
+        expected_version=1,
+        at=150,
+        approval_state="EXECUTING",
+    )
+    assert ledger is not None
+    audit.fail_next_write = True
+
+    failed = service.recover()
+    approval = approvals.get("approval-1")
+    assert failed[0].status == "unresolved"
+    assert approval is not None and approval.state == "AUDIT_PENDING"
+    assert crm.get_record("CUST-1").record_version == 2
+    assert audit.count() == 0
+
+    recovered = service.recover()
+    approval = approvals.get("approval-1")
+    events = audit.for_execution("execution-audit-fails")
+    assert recovered[0].status == "completed"
+    assert approval is not None and approval.state == "COMPLETED"
+    assert len(events) == 1 and events[0].reconciled

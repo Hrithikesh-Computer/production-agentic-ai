@@ -126,6 +126,14 @@ class ApprovalsStore:
             return None
         return Approval(**dict(row))
 
+    def unresolved(self) -> list[Approval]:
+        rows = self.connection.execute(
+            """SELECT * FROM approvals
+WHERE state IN ('EXECUTING', 'AUDIT_PENDING')
+ORDER BY approval_id"""
+        ).fetchall()
+        return [Approval(**dict(row)) for row in rows]
+
     def set_review(
         self, approval_id: str, reviewer_id: str, at: int, approve: bool
     ) -> bool:
@@ -168,6 +176,17 @@ WHERE approval_id = ?
             WHERE approval_id = ?
             """,
             (state, reason, approval_id),
+        )
+        self.connection.commit()
+        return cursor.rowcount == 1
+
+    def return_to_approved(self, approval_id: str) -> bool:
+        cursor = self.connection.execute(
+            """UPDATE approvals
+SET state = 'APPROVED', execution_id = NULL, reason = NULL,
+    approval_version = approval_version + 1
+WHERE approval_id = ? AND state = 'EXECUTING';""",
+            (approval_id,),
         )
         self.connection.commit()
         return cursor.rowcount == 1

@@ -224,6 +224,91 @@ class CRMExecutionService:
             "completed", "executed", approval_id, execution_id, ledger=ledger
         )
 
+    def recover(self) -> list[ExecutionResult]:
+        """Reconcile unresolved approvals on demand; no background work is started."""
+        outcomes: list[ExecutionResult] = []
+        at = self.clock()
+        for approval in self.approvals.unresolved():
+            execution_id = approval.execution_id
+            if execution_id is None:
+                outcomes.append(
+                    self._result(
+                        "unresolved", "missing_execution_id", approval.approval_id
+                    )
+                )
+                continue
+
+            ledger = self.crm.ledger_result(execution_id, approval.state)
+            if ledger is None:
+                if approval.state == "EXECUTING" and self.approvals.return_to_approved(
+                    approval.approval_id
+                ):
+                    outcomes.append(
+                        self._result(
+                            "pending",
+                            "recovered_without_crm_write",
+                            approval.approval_id,
+                            execution_id,
+                        )
+                    )
+                else:
+                    outcomes.append(
+                        self._result(
+                            "unresolved",
+                            "crm_ledger_unavailable_or_approval_store_failed",
+                            approval.approval_id,
+                            execution_id,
+                        )
+                    )
+                continue
+
+            existing_events = self.audit.for_execution(execution_id)
+            try:
+                if not existing_events:
+                    self.audit.write(
+                        self._audit_event(
+                            approval,
+                            execution_id,
+                            at,
+                            event_type="execution_succeeded",
+                            state_before=approval.state,
+                            state_after="COMPLETED",
+                            crm_record_version=ledger.record_version,
+                            reconciled=True,
+                        )
+                    )
+                else:
+                    for event in existing_events:
+                        self.audit.mark_reconciled(event.audit_id)
+                if not self.approvals.set_state(approval.approval_id, "COMPLETED"):
+                    raise OSError("approval state could not be marked completed")
+            except Exception as error:
+                try:
+                    self.approvals.set_state(approval.approval_id, "AUDIT_PENDING")
+                except Exception:
+                    pass
+                outcomes.append(
+                    self._result(
+                        "unresolved",
+                        "recovery_audit_pending",
+                        approval.approval_id,
+                        execution_id,
+                        ledger=ledger,
+                        audit_error=str(error),
+                    )
+                )
+                continue
+            outcomes.append(
+                self._result(
+                    "completed",
+                    "recovered_from_crm_ledger",
+                    approval.approval_id,
+                    execution_id,
+                    ledger=ledger,
+                )
+            )
+        return outcomes
+
     def _invalidate(
         self, approval: Approval, reason: str, at: int
     ) -> ExecutionResult:
@@ -265,6 +350,7 @@ class CRMExecutionService:
         state_after: str,
         crm_record_version: int | None,
         reason: str | None = None,
+        reconciled: bool = False,
     ) -> AuditEvent:
         return AuditEvent(
             audit_id=self._new_id(self.audit_id_factory),
@@ -277,6 +363,7 @@ class CRMExecutionService:
             state_before=state_before,
             state_after=state_after,
             reason=reason,
+            reconciled=reconciled,
         )
 
     @staticmethod
