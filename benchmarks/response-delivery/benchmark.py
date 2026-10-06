@@ -8,7 +8,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+REFERENCE_IMPL = ROOT / "04-reference-implementation"
 REF_IMPL = ROOT / "04-reference-implementation" / "adaptive-response-filter"
+if str(REFERENCE_IMPL) not in sys.path:
+    sys.path.insert(0, str(REFERENCE_IMPL))
 if str(REF_IMPL) not in sys.path:
     sys.path.insert(0, str(REF_IMPL))
 
