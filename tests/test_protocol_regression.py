@@ -11,6 +11,7 @@ PACKAGE = (
 )
 sys.path.insert(0, str(PACKAGE))
 
+import ndjson_stream  # noqa: E402
 from envelope import WireEnvelope  # noqa: E402
 from filter import AdaptiveResponseFilter  # noqa: E402
 from ndjson_stream import NDJSONDecoder, NDJSONError, RecordTooLargeError  # noqa: E402
@@ -190,12 +191,15 @@ def test_decoder_rejects_duplicate_object_names():
 
 
 # R10: normalize extreme nesting failures into the decoder's NDJSON error family.
-def test_deep_nesting_raises_ndjson_error_not_recursion_error():
+def test_recursion_error_is_normalized_and_poisons_decoder(monkeypatch):
+    def raise_recursion_error(*_args, **_kwargs):
+        raise RecursionError("forced parser recursion failure")
+
+    monkeypatch.setattr(ndjson_stream.json, "loads", raise_recursion_error)
     decoder = NDJSONDecoder()
-    record = b"[" * 100_000 + b"0" + b"]" * 100_000 + b"\n"
 
-    with pytest.raises(NDJSONError) as caught:
-        decoder.feed(record)
+    with pytest.raises(NDJSONError, match="nesting exceeds decoder capacity") as caught:
+        decoder.feed(b"{}\n")
 
-    assert not isinstance(caught.value, RecursionError)
+    assert isinstance(caught.value.__cause__, RecursionError)
     assert decoder.failed
