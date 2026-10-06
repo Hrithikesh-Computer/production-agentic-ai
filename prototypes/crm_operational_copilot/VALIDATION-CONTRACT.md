@@ -48,7 +48,9 @@ The repository defines the evidence levels as follows in [README.md](../../READM
 
 The current CRM workflow is explicitly described as:
 
-> "| CRM approval workflow | L2 | [Proposed architecture](./architecture/00-solution-overview.md) → [approval decision](./architecture/02-decisions/ADR-002-approval-signing.md) → [in-memory simulation and tests](./prototypes/crm_operational_copilot/approval_workflow.py) → [evidence and limitations](./prototypes/crm_operational_copilot/EVIDENCE.md). The simulation is serial and uses caller-supplied identities and in-memory state; concurrency, sink-failure recovery, and external integration remain unvalidated. |"
+> `"| CRM approval workflow | L2 | [Proposed architecture](./architecture/00-solution-overview.md) → [approval decision](./architecture/02-decisions/ADR-002-approval-signing.md) → [in-memory simulation and tests](./prototypes/crm_operational_copilot/approval_workflow.py) → [evidence and limitations](./prototypes/crm_operational_copilot/EVIDENCE.md). The simulation is serial and uses caller-supplied identities and in-memory state; concurrency, sink-failure recovery, and external integration remain unvalidated. |"`
+
+Working repository links: [proposed architecture](../../architecture/00-solution-overview.md), [approval decision](../../architecture/02-decisions/ADR-002-approval-signing.md), [in-memory simulation and tests](approval_workflow.py), and [evidence and limitations](EVIDENCE.md).
 
 This contract specifies a stronger local deterministic proof pattern; it is not production evidence and does not change the repository's stated evidence level.
 
