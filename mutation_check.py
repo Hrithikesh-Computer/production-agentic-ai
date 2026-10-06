@@ -246,6 +246,16 @@ NDJSON_STRICT = {
         '        except RecursionError:\n            self._poison()\n            raise\n',
     ),
 }
+RECEIVER_OUTCOMES = {
+    "receiver outcomes: guard removed": (
+        "    try:\n        sink(ReceiverOutcomeEvent(outcome).as_dict())\n    except Exception:\n        pass\n",
+        "    sink(ReceiverOutcomeEvent(outcome).as_dict())\n",
+    ),
+    "receiver outcomes: guard widened to BaseException": (
+        "    except Exception:\n",
+        "    except BaseException:\n",
+    ),
+}
 
 
 def run_module(
@@ -264,8 +274,10 @@ def run_module(
     killed: list[str] = []
     survived: list[str] = []
     skipped: list[str] = []
+    harness_errors: list[str] = []
+    killing_tests: dict[str, str] = {}
     for label, (old, new) in mutants.items():
-        if old not in source:
+        if source.count(old) != 1:
             skipped.append(label)
             continue
         work = Path(tempfile.mkdtemp())
@@ -313,24 +325,41 @@ def run_module(
                 capture_output=True,
                 text=True,
                 env=os.environ | {"PYTHONPATH": os.pathsep.join(python_paths)},
+                timeout=120,
             )
-            if result.returncode != 0:
-                killed.append(label)
-            else:
+            if result.returncode == 0:
                 survived.append(label)
+            elif "AssertionError" in result.stdout + result.stderr:
+                killed.append(label)
+                failure_lines = [
+                    line
+                    for line in (result.stdout + result.stderr).splitlines()
+                    if line.startswith("FAILED ")
+                ]
+                if failure_lines:
+                    killing_tests[label] = failure_lines[-1]
+            else:
+                harness_errors.append(label)
+        except subprocess.TimeoutExpired:
+            harness_errors.append(label)
         finally:
             shutil.rmtree(work, ignore_errors=True)
     total = len(mutants)
     applicable = total - len(skipped)
     print(
         f"{name}: applicable={applicable}/{total}, killed={len(killed)}, "
-        f"survived={len(survived)}, not_applicable={len(skipped)}"
+        f"survived={len(survived)}, not_applicable={len(skipped)}, "
+        f"harness_errors={len(harness_errors)}"
     )
     for label in survived:
         print(f"   SURVIVED: {label}")
     for label in skipped:
         print(f"   NOT APPLICABLE (source changed): {label}")
-    return len(survived) + len(skipped)
+    for label in harness_errors:
+        print(f"   HARNESS ERROR: {label}")
+    for label, test in killing_tests.items():
+        print(f"   KILLING TEST: {label}: {test}")
+    return len(survived) + len(skipped) + len(harness_errors)
 
 
 def main() -> None:
@@ -435,6 +464,13 @@ def main() -> None:
         args.tests,
         "ndjson_stream.py",
         NDJSON_STRICT,
+    )
+    failures += run_module(
+        args.impl,
+        protocol_dir,
+        "receiver_outcomes.py",
+        RECEIVER_OUTCOMES,
+        pytest_args=("tests/test_receiver_observability.py",),
     )
     failures += run_module(
         args.impl,
