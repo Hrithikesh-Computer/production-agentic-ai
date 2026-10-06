@@ -303,6 +303,15 @@ def run_module(
         try:
             shutil.copytree(tests, work / "tests")
             repo_root = Path.cwd()
+            crm_prototype = repo_root / "prototypes" / "crm_operational_copilot"
+            copied_crm_prototype = (
+                work / "prototypes" / "crm_operational_copilot"
+            )
+            copied_crm_prototype.mkdir(parents=True, exist_ok=True)
+            for prototype_file in crm_prototype.glob("*.py"):
+                shutil.copy2(
+                    prototype_file, copied_crm_prototype / prototype_file.name
+                )
             for config_name in ("pyproject.toml", "pytest.ini", "tox.ini", "setup.cfg"):
                 config = repo_root / config_name
                 if config.is_file():

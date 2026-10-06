@@ -25,6 +25,7 @@ ExecutionStatus = Literal[
     "pending",
     "unresolved",
     "invalidated",
+    "rejected",
 ]
 
 
@@ -97,7 +98,23 @@ class CRMExecutionService:
                 else "scope"
             )
             return self._invalidate(approval, reason, at)
+        if approval.state in {"EXECUTING", "AUDIT_PENDING"}:
+            if approval.execution_id is not None:
+                ledger = self.crm.ledger_result(
+                    approval.execution_id, approval.state
+                )
+                if ledger is not None:
+                    return self._result(
+                        "unresolved",
+                        "execution_outcome_unresolved",
+                        approval_id,
+                        approval.execution_id,
+                        ledger=ledger,
+                    )
+            return self._result("unresolved", "execution_in_progress", approval_id)
         if approval.state != "APPROVED":
+            if approval.state == "COMPLETED":
+                return self._result("denied", "approval_completed", approval_id)
             return self._result(
                 "pending", f"approval_{approval.state.lower()}", approval_id
             )
@@ -222,6 +239,53 @@ class CRMExecutionService:
             )
         return self._result(
             "completed", "executed", approval_id, execution_id, ledger=ledger
+        )
+
+    def review(
+        self,
+        approval_id: str,
+        *,
+        reviewer_id: str,
+        approve: bool,
+        reviewer_scope: str,
+    ) -> ExecutionResult:
+        at = self.clock()
+        approval = self.approvals.get(approval_id)
+        if approval is None:
+            return self._result("missing", "approval_missing", approval_id)
+        identity = self.identities.authorize(reviewer_id, reviewer_scope, at=at)
+        if not identity.allowed:
+            return self._result("denied", identity.reason, approval_id)
+        if reviewer_id == approval.requester_id:
+            return self._result("denied", "self_approval", approval_id)
+        if not self.approvals.set_review(approval_id, reviewer_id, at, approve):
+            return self._result("denied", "approval_not_pending", approval_id)
+        event_type = "approval_approved" if approve else "approval_rejected"
+        reason = None if approve else "reviewer_denied"
+        try:
+            self.audit.write(
+                self._audit_event(
+                    approval,
+                    None,
+                    at,
+                    event_type=event_type,
+                    state_before="PENDING",
+                    state_after="APPROVED" if approve else "REJECTED",
+                    crm_record_version=approval.record_version,
+                    reason=reason,
+                )
+            )
+        except Exception as error:
+            return self._result(
+                "rejected" if not approve else "unresolved",
+                reason or "approval_audit_pending",
+                approval_id,
+                audit_error=str(error),
+            )
+        return self._result(
+            "completed" if approve else "rejected",
+            "approved" if approve else "reviewer_denied",
+            approval_id,
         )
 
     def recover(self) -> list[ExecutionResult]:
