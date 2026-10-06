@@ -60,7 +60,10 @@ AUTH = {
     "session: skip constraint": ("        if action in constraint.actions and constraint.actions <= combined:", "        if False:"),
     "session: any-member match": ("constraint.actions <= combined", "bool(constraint.actions & combined)"),
     "session: drop individual denial": ('    if decision.effect == "deny":\n        return decision\n    combined', "    combined"),
-    "session: refer becomes allow": ('    return decision\n', '    return Decision("allow", "session allowed")\n'),
+    "session: refer becomes allow": (
+        "    for constraint in aggregation_constraints:\n        if action in constraint.actions and constraint.actions <= combined:\n            return Decision(\"deny\", constraint.reason)\n    return decision\n",
+        "    for constraint in aggregation_constraints:\n        if action in constraint.actions and constraint.actions <= combined:\n            return Decision(\"deny\", constraint.reason)\n    return Decision(\"allow\", \"session allowed\")\n",
+    ),
     "ticket: use refer becomes allow": ('    return current_decision\n\n\ndef evaluate_in_session', '    return Decision("allow", "ticket valid")\n\n\ndef evaluate_in_session'),
 }
 WORKFLOW = {
@@ -74,7 +77,10 @@ WORKFLOW = {
     ),
     "workflow: skip actor binding": ('        if actor != proposal.requester:\n', '        if False:\n'),
     "workflow: skip approved-state check": ('        if record.status != "approved":\n', '        if False:\n'),
-    "workflow: ignore referral handling": ('        if decision.effect == "refer":\n', '        if False:\n'),
+    "workflow: ignore referral handling": (
+        '            raise PermissionError(decision.reason)\n        if decision.effect == "refer":\n',
+        '            raise PermissionError(decision.reason)\n        if False:\n',
+    ),
     "workflow: skip reviewer recheck": ('            if reviewer_decision.effect != "allow":\n', '            if False:\n'),
     "workflow: skip execution expiry": (
         '        if current >= proposal.expires_at:\n            record.status = "expired"\n            self._audit(\n                "proposal_expired", actor=actor, proposal=proposal, at=current\n',
@@ -258,6 +264,18 @@ RECEIVER_OUTCOMES = {
 }
 
 
+def classify_mutant_result(returncode: int | None, output: str) -> str:
+    if returncode is None or returncode >= 2 or returncode == 5:
+        return "harness error"
+    if "ERROR collecting" in output or "ImportError" in output or "ModuleNotFoundError" in output:
+        return "harness error"
+    if returncode == 0:
+        return "survived"
+    if returncode == 1 and ("FAILED " in output or "ERROR " in output):
+        return "killed"
+    return "harness error"
+
+
 def run_module(
     impl: Path,
     tests: Path,
@@ -275,6 +293,7 @@ def run_module(
     survived: list[str] = []
     skipped: list[str] = []
     harness_errors: list[str] = []
+    harness_reasons: dict[str, str] = {}
     killing_tests: dict[str, str] = {}
     for label, (old, new) in mutants.items():
         if source.count(old) != 1:
@@ -283,53 +302,81 @@ def run_module(
         work = Path(tempfile.mkdtemp())
         try:
             shutil.copytree(tests, work / "tests")
-            (work / "impl").mkdir()
-            for sibling in (
-                "authority_policy.py",
-                "ndjson_stream.py",
-                "receiver_outcomes.py",
-            ):
-                if (impl / sibling).exists():
-                    shutil.copy(impl / sibling, work / "impl" / sibling)
+            repo_root = Path.cwd()
+            for config_name in ("pyproject.toml", "pytest.ini", "tox.ini", "setup.cfg"):
+                config = repo_root / config_name
+                if config.is_file():
+                    shutil.copy2(config, work / config_name)
             test_paths = [str(work / "tests")]
-            python_paths = [str(work / "impl")]
+            python_paths: list[str] = []
+            copied_impl = work / impl
+            if impl.is_dir() and copied_impl != work / "impl":
+                shutil.copytree(impl, copied_impl, dirs_exist_ok=True)
+                python_paths.append(str(copied_impl))
+                shutil.copy2(
+                    Path(__file__).resolve(), copied_impl / "mutation_check.py"
+                )
             if source_dir is not None:
                 copied_source_dir = work / source_dir
-                copied_source_dir.mkdir(parents=True, exist_ok=True)
+                shutil.copytree(source_dir, copied_source_dir, dirs_exist_ok=True)
                 for support_file in support_files:
                     shutil.copy(source_dir / support_file, copied_source_dir / support_file)
-                for extra_test in extra_tests:
-                    shutil.copy(source_dir / extra_test, copied_source_dir / extra_test)
-                    test_paths.append(str(copied_source_dir / extra_test))
+                for index, extra_test in enumerate(extra_tests):
+                    copied_test = extra_test.with_name(
+                        f"mutation_extra_{index}_{extra_test.name}"
+                    )
+                    shutil.copy(
+                        source_dir / extra_test,
+                        copied_source_dir / copied_test,
+                    )
+                    test_paths.append(str(copied_source_dir / copied_test))
                 python_paths.append(str(copied_source_dir))
                 target = copied_source_dir / name
             else:
-                target = work / "impl" / name
-            target.write_text(
-                source.replace(old, new, 1),
-                encoding="utf-8",
-            )
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    "-m",
-                    "pytest",
-                    "-q",
-                    "-x",
-                    "-p",
-                    "no:cacheprovider",
-                    *test_paths,
-                    *pytest_args,
-                ],
+                target = copied_impl / name
+            pytest_command = [
+                sys.executable,
+                "-m",
+                "pytest",
+                "-q",
+                "-x",
+                "-p",
+                "no:cacheprovider",
+                *test_paths,
+                *pytest_args,
+            ]
+            baseline = subprocess.run(
+                pytest_command,
                 cwd=work,
                 capture_output=True,
                 text=True,
                 env=os.environ | {"PYTHONPATH": os.pathsep.join(python_paths)},
                 timeout=120,
             )
-            if result.returncode == 0:
+            if baseline.returncode != 0:
+                harness_errors.append(label)
+                harness_reasons[label] = (baseline.stdout + baseline.stderr)[-800:].strip()
+                continue
+            for cache_dir in work.rglob("__pycache__"):
+                shutil.rmtree(cache_dir, ignore_errors=True)
+            target.write_text(
+                source.replace(old, new, 1),
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                pytest_command,
+                cwd=work,
+                capture_output=True,
+                text=True,
+                env=os.environ | {"PYTHONPATH": os.pathsep.join(python_paths)},
+                timeout=120,
+            )
+            outcome = classify_mutant_result(
+                result.returncode, result.stdout + result.stderr
+            )
+            if outcome == "survived":
                 survived.append(label)
-            elif "AssertionError" in result.stdout + result.stderr:
+            elif outcome == "killed":
                 killed.append(label)
                 failure_lines = [
                     line
@@ -340,8 +387,10 @@ def run_module(
                     killing_tests[label] = failure_lines[-1]
             else:
                 harness_errors.append(label)
+                harness_reasons[label] = (result.stdout + result.stderr)[-800:].strip()
         except subprocess.TimeoutExpired:
             harness_errors.append(label)
+            harness_reasons[label] = "pytest subprocess timed out after 120 seconds"
         finally:
             shutil.rmtree(work, ignore_errors=True)
     total = len(mutants)
@@ -357,6 +406,9 @@ def run_module(
         print(f"   NOT APPLICABLE (source changed): {label}")
     for label in harness_errors:
         print(f"   HARNESS ERROR: {label}")
+        reason = harness_reasons.get(label, "")
+        if reason:
+            print(f"   HARNESS REASON: {label}: {reason}")
     for label, test in killing_tests.items():
         print(f"   KILLING TEST: {label}: {test}")
     return len(survived) + len(skipped) + len(harness_errors)
@@ -409,6 +461,7 @@ def main() -> None:
             "test_envelope.py",
             "test_reassembler.py",
             "test_reassembly_session.py",
+            "test_receiver_observability.py",
         )
     )
     protocol_support = tuple(
