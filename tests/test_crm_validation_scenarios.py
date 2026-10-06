@@ -310,6 +310,7 @@ def _execution_worker(
 @pytest.mark.parametrize(
     "round_number", range(5), ids=lambda value: f"round-{value + 1}"
 )
+@pytest.mark.slow
 def test_s09_fifty_separate_processes_have_exactly_one_persisted_claim_winner(
     tmp_path: Path, round_number: int
 ) -> None:

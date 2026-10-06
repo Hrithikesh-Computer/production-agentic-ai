@@ -351,6 +351,8 @@ def run_module(
                 "-x",
                 "-p",
                 "no:cacheprovider",
+                "-m",
+                "not slow",
                 *test_paths,
                 *pytest_args,
             ]
