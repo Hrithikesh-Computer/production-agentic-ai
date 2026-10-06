@@ -56,6 +56,9 @@ jobs:
       - name: Check response-delivery evidence figures
         run: python scripts/check_response_delivery_evidence.py
 
+      - name: Check CRM validation evidence
+        run: python scripts/check_crm_validation_evidence.py
+
       - name: Type check with mypy
         env:
           MYPYPATH: 04-reference-implementation:prototypes/crm_operational_copilot
