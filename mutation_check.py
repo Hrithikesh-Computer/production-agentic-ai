@@ -303,6 +303,11 @@ def run_module(
         try:
             shutil.copytree(tests, work / "tests")
             repo_root = Path.cwd()
+            benchmark_dir = repo_root / "benchmarks" / "response-delivery"
+            copied_benchmark_dir = work / "benchmarks" / "response-delivery"
+            copied_benchmark_dir.mkdir(parents=True, exist_ok=True)
+            for benchmark_file in benchmark_dir.glob("*.py"):
+                shutil.copy2(benchmark_file, copied_benchmark_dir / benchmark_file.name)
             for config_name in ("pyproject.toml", "pytest.ini", "tox.ini", "setup.cfg"):
                 config = repo_root / config_name
                 if config.is_file():
@@ -354,9 +359,12 @@ def run_module(
                 timeout=120,
             )
             if baseline.returncode != 0:
-                harness_errors.append(label)
-                harness_reasons[label] = (baseline.stdout + baseline.stderr)[-800:].strip()
-                continue
+                output = (baseline.stdout + baseline.stderr)[-800:].strip()
+                print(
+                    f"{name}: unmutated baseline failed in mutant workspace; "
+                    "stopping before running mutants.\n" + output
+                )
+                raise SystemExit(2)
             for cache_dir in work.rglob("__pycache__"):
                 shutil.rmtree(cache_dir, ignore_errors=True)
             target.write_text(
