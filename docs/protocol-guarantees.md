@@ -125,6 +125,12 @@ Records contain no message ID, payload, key, authentication tag, callback error
 text, or configured limit values. The vocabulary and record shape therefore
 have bounded cardinality and are safe to aggregate without request material.
 
+Sink failures are intentionally isolated from protocol control flow. If a
+configured outcome sink raises an ordinary `Exception`, the emitter suppresses
+that sink error and continues without altering the original result, exception, or
+state. `KeyboardInterrupt`, `SystemExit`, and other `BaseException` subclasses are
+not suppressed.
+
 These are local receiver outcomes, not a monitoring backend or receiver health
 dashboard. A production integration must supply a sink and operational alerts.
 

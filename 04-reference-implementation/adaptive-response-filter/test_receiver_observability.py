@@ -20,7 +20,10 @@ def _snapshot_outcome_state(reassembler_state):
 
 def _snapshot_manager_state(manager):
     return {
-        "sessions": manager.sessions.copy(),
+        "sessions": {
+            message_id: _snapshot_session_state(session)
+            for message_id, session in manager.sessions.items()
+        },
         "tombstones": manager.tombstones.copy(),
         "session_activity": manager._session_activity.copy(),
         "active_memory_bytes": manager.active_memory_bytes,
@@ -254,7 +257,21 @@ def test_outcome_sink_failures_preserve_original_control_flow_and_state(monkeypa
     assert noop_state["sessions"] == failing_sink_state["sessions"]
     assert noop_state["tombstones"] == failing_sink_state["tombstones"]
     assert noop_state["session_activity"] == failing_sink_state["session_activity"]
-    assert noop_state["active_memory_bytes"] == failing_sink_state["active_memory_bytes"]
+    assert (
+        noop_state["active_memory_bytes"]
+        == failing_sink_state["active_memory_bytes"]
+    )
+
+    def _state_for_session_cap(manager):
+        return {
+            "session_ids": tuple(manager.sessions),
+            "session_state": {
+                message_id: _snapshot_session_state(session)
+                for message_id, session in manager.sessions.items()
+            },
+            "tombstones": manager.tombstones.copy(),
+            "active_memory_bytes": manager.active_memory_bytes,
+        }
 
     def run_noop_rejection_case():
         invalid = _chunk("private-message-id", 0, 2, b"private payload").to_dict()
@@ -273,35 +290,38 @@ def test_outcome_sink_failures_preserve_original_control_flow_and_state(monkeypa
             "emit_receiver_outcome",
             lambda outcome, sink=fail_sink: original_helper(outcome, sink),
         )
-        with pytest.raises(RuntimeError, match="sink failed"):
+        with pytest.raises(ValueError, match="authentication failed"):
             manager.add_chunk(invalid)
         return _snapshot_manager_state(manager)
 
     assert run_noop_rejection_case() == run_failing_rejection_case()
 
     def run_session_cap_case():
-        manager = _manager(max_sessions=1)
+        now = [0.0]
+        manager = _manager(clock=lambda: now[0], max_sessions=1)
         manager.add_chunk(_chunk("held", 0, 2, b"a"))
         with pytest.raises(ValueError, match="maximum reassembly sessions reached"):
             manager.add_chunk(_chunk("other", 0, 2, b"b"))
-        return _snapshot_manager_state(manager)
+        return _state_for_session_cap(manager)
 
     def run_session_cap_failing_sink_case():
-        manager = _manager(max_sessions=1)
+        now = [0.0]
+        manager = _manager(clock=lambda: now[0], max_sessions=1)
         manager.add_chunk(_chunk("held", 0, 2, b"a"))
         monkeypatch.setattr(
             reassembler_module,
             "emit_receiver_outcome",
             lambda outcome, sink=fail_sink: original_helper(outcome, sink),
         )
-        with pytest.raises(RuntimeError, match="sink failed"):
+        with pytest.raises(ValueError, match="maximum reassembly sessions reached"):
             manager.add_chunk(_chunk("other", 0, 2, b"b"))
-        return _snapshot_manager_state(manager)
+        return _state_for_session_cap(manager)
 
     assert run_session_cap_case() == run_session_cap_failing_sink_case()
 
     def run_limit_and_crc_case():
-        manager = _manager(max_total_bytes=97)
+        now = [0.0]
+        manager = _manager(clock=lambda: now[0], max_total_bytes=97)
         manager.add_chunk(_chunk("held", 0, 2, b"a"))
         with pytest.raises(ValueError, match="total active payload bytes"):
             manager.add_chunk(_chunk("over", 0, 2, b"b"))
@@ -312,18 +332,19 @@ def test_outcome_sink_failures_preserve_original_control_flow_and_state(monkeypa
         return _snapshot_manager_state(manager)
 
     def run_limit_and_crc_failing_sink_case():
-        manager = _manager(max_total_bytes=97)
+        now = [0.0]
+        manager = _manager(clock=lambda: now[0], max_total_bytes=97)
         manager.add_chunk(_chunk("held", 0, 2, b"a"))
         monkeypatch.setattr(
             reassembler_module,
             "emit_receiver_outcome",
             lambda outcome, sink=fail_sink: original_helper(outcome, sink),
         )
-        with pytest.raises(RuntimeError, match="sink failed"):
+        with pytest.raises(ValueError, match="total active payload bytes"):
             manager.add_chunk(_chunk("over", 0, 2, b"b"))
         invalid = _chunk("checksum", 0, 2, b"payload").to_dict()
         invalid["checksum"] = "0" * 8
-        with pytest.raises(RuntimeError, match="sink failed"):
+        with pytest.raises(ValueError, match="checksum mismatch"):
             Reassembler(authentication_key=AUTH_KEY).add_chunk(invalid)
         return _snapshot_manager_state(manager)
 
@@ -342,7 +363,7 @@ def test_outcome_sink_failures_preserve_original_control_flow_and_state(monkeypa
             "emit_receiver_outcome",
             lambda outcome, sink=fail_sink: original_helper(outcome, sink),
         )
-        with pytest.raises(RuntimeError, match="sink failed"):
+        with pytest.raises(ValueError):
             decoder.feed(b"not-json\n")
         return decoder.failed, decoder._pending
 

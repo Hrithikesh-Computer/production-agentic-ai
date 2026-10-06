@@ -33,4 +33,7 @@ def emit_receiver_outcome(
     sink: Callable[[dict[str, str]], None] = print,
 ) -> None:
     """Emit a fixed-cardinality receiver outcome without request data."""
-    sink(ReceiverOutcomeEvent(outcome).as_dict())
+    try:
+        sink(ReceiverOutcomeEvent(outcome).as_dict())
+    except Exception:
+        pass
