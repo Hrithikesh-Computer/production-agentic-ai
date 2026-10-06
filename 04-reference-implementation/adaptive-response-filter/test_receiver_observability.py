@@ -235,6 +235,16 @@ def test_outcome_sink_failures_preserve_original_control_flow_and_state(monkeypa
 
     original_helper = reassembler_module.emit_receiver_outcome
 
+    def assert_exception(operation, expected_type, expected_message=None):
+        try:
+            operation()
+        except Exception as error:
+            assert isinstance(error, expected_type)
+            if expected_message is not None:
+                assert expected_message in str(error)
+        else:
+            pytest.fail(f"expected {expected_type.__name__}")
+
     def run_noop_case():
         now = [0.0]
         manager = _manager(clock=lambda: now[0])
@@ -277,8 +287,9 @@ def test_outcome_sink_failures_preserve_original_control_flow_and_state(monkeypa
         invalid = _chunk("private-message-id", 0, 2, b"private payload").to_dict()
         invalid["auth_tag"] = "0" * 64
         manager = _manager()
-        with pytest.raises(ValueError, match="authentication failed"):
-            manager.add_chunk(invalid)
+        assert_exception(
+            lambda: manager.add_chunk(invalid), ValueError, "authentication failed"
+        )
         return _snapshot_manager_state(manager)
 
     def run_failing_rejection_case():
@@ -290,8 +301,9 @@ def test_outcome_sink_failures_preserve_original_control_flow_and_state(monkeypa
             "emit_receiver_outcome",
             lambda outcome, sink=fail_sink: original_helper(outcome, sink),
         )
-        with pytest.raises(ValueError, match="authentication failed"):
-            manager.add_chunk(invalid)
+        assert_exception(
+            lambda: manager.add_chunk(invalid), ValueError, "authentication failed"
+        )
         return _snapshot_manager_state(manager)
 
     assert run_noop_rejection_case() == run_failing_rejection_case()
@@ -300,8 +312,11 @@ def test_outcome_sink_failures_preserve_original_control_flow_and_state(monkeypa
         now = [0.0]
         manager = _manager(clock=lambda: now[0], max_sessions=1)
         manager.add_chunk(_chunk("held", 0, 2, b"a"))
-        with pytest.raises(ValueError, match="maximum reassembly sessions reached"):
-            manager.add_chunk(_chunk("other", 0, 2, b"b"))
+        assert_exception(
+            lambda: manager.add_chunk(_chunk("other", 0, 2, b"b")),
+            ValueError,
+            "maximum reassembly sessions reached",
+        )
         return _state_for_session_cap(manager)
 
     def run_session_cap_failing_sink_case():
@@ -313,8 +328,11 @@ def test_outcome_sink_failures_preserve_original_control_flow_and_state(monkeypa
             "emit_receiver_outcome",
             lambda outcome, sink=fail_sink: original_helper(outcome, sink),
         )
-        with pytest.raises(ValueError, match="maximum reassembly sessions reached"):
-            manager.add_chunk(_chunk("other", 0, 2, b"b"))
+        assert_exception(
+            lambda: manager.add_chunk(_chunk("other", 0, 2, b"b")),
+            ValueError,
+            "maximum reassembly sessions reached",
+        )
         return _state_for_session_cap(manager)
 
     assert run_session_cap_case() == run_session_cap_failing_sink_case()
@@ -323,12 +341,18 @@ def test_outcome_sink_failures_preserve_original_control_flow_and_state(monkeypa
         now = [0.0]
         manager = _manager(clock=lambda: now[0], max_total_bytes=97)
         manager.add_chunk(_chunk("held", 0, 2, b"a"))
-        with pytest.raises(ValueError, match="total active payload bytes"):
-            manager.add_chunk(_chunk("over", 0, 2, b"b"))
+        assert_exception(
+            lambda: manager.add_chunk(_chunk("over", 0, 2, b"b")),
+            ValueError,
+            "total active payload bytes",
+        )
         invalid = _chunk("checksum", 0, 2, b"payload").to_dict()
         invalid["checksum"] = "0" * 8
-        with pytest.raises(ValueError, match="checksum mismatch"):
-            Reassembler(authentication_key=AUTH_KEY).add_chunk(invalid)
+        assert_exception(
+            lambda: Reassembler(authentication_key=AUTH_KEY).add_chunk(invalid),
+            ValueError,
+            "checksum mismatch",
+        )
         return _snapshot_manager_state(manager)
 
     def run_limit_and_crc_failing_sink_case():
@@ -340,20 +364,25 @@ def test_outcome_sink_failures_preserve_original_control_flow_and_state(monkeypa
             "emit_receiver_outcome",
             lambda outcome, sink=fail_sink: original_helper(outcome, sink),
         )
-        with pytest.raises(ValueError, match="total active payload bytes"):
-            manager.add_chunk(_chunk("over", 0, 2, b"b"))
+        assert_exception(
+            lambda: manager.add_chunk(_chunk("over", 0, 2, b"b")),
+            ValueError,
+            "total active payload bytes",
+        )
         invalid = _chunk("checksum", 0, 2, b"payload").to_dict()
         invalid["checksum"] = "0" * 8
-        with pytest.raises(ValueError, match="checksum mismatch"):
-            Reassembler(authentication_key=AUTH_KEY).add_chunk(invalid)
+        assert_exception(
+            lambda: Reassembler(authentication_key=AUTH_KEY).add_chunk(invalid),
+            ValueError,
+            "checksum mismatch",
+        )
         return _snapshot_manager_state(manager)
 
     assert run_limit_and_crc_case() == run_limit_and_crc_failing_sink_case()
 
     def run_ndjson_case():
         decoder = ndjson_stream.NDJSONDecoder()
-        with pytest.raises(ValueError):
-            decoder.feed(b"not-json\n")
+        assert_exception(lambda: decoder.feed(b"not-json\n"), ValueError)
         return decoder.failed, decoder._pending
 
     def run_ndjson_failing_sink_case():
@@ -363,8 +392,7 @@ def test_outcome_sink_failures_preserve_original_control_flow_and_state(monkeypa
             "emit_receiver_outcome",
             lambda outcome, sink=fail_sink: original_helper(outcome, sink),
         )
-        with pytest.raises(ValueError):
-            decoder.feed(b"not-json\n")
+        assert_exception(lambda: decoder.feed(b"not-json\n"), ValueError)
         return decoder.failed, decoder._pending
 
     assert run_ndjson_case() == run_ndjson_failing_sink_case()
@@ -383,8 +411,7 @@ def test_outcome_sink_failures_preserve_original_control_flow_and_state(monkeypa
         )
         session.add_chunk(_chunk("retry-noop", 0, 2, b"part"))
         now[0] = 1.0
-        with pytest.raises(RuntimeError, match="callback failed"):
-            session.poll_timeout()
+        assert_exception(session.poll_timeout, RuntimeError, "callback failed")
         return _snapshot_session_state(session)
 
     def run_retry_failing_sink_case():
@@ -406,8 +433,7 @@ def test_outcome_sink_failures_preserve_original_control_flow_and_state(monkeypa
             "emit_receiver_outcome",
             lambda outcome, sink=fail_sink: original_helper(outcome, sink),
         )
-        with pytest.raises(RuntimeError, match="callback failed"):
-            session.poll_timeout()
+        assert_exception(session.poll_timeout, RuntimeError, "callback failed")
         return _snapshot_session_state(session)
 
     assert run_retry_case() == run_retry_failing_sink_case()
@@ -426,8 +452,7 @@ def test_outcome_sink_failures_preserve_original_control_flow_and_state(monkeypa
         )
         session.add_chunk(_chunk("fallback-noop", 0, 2, b"part"))
         now[0] = 2.0
-        with pytest.raises(RuntimeError, match="fallback failed"):
-            session.poll_timeout()
+        assert_exception(session.poll_timeout, RuntimeError, "fallback failed")
         return _snapshot_session_state(session)
 
     def run_full_buffer_failing_sink_case():
@@ -449,8 +474,7 @@ def test_outcome_sink_failures_preserve_original_control_flow_and_state(monkeypa
             "emit_receiver_outcome",
             lambda outcome, sink=fail_sink: original_helper(outcome, sink),
         )
-        with pytest.raises(RuntimeError, match="fallback failed"):
-            session.poll_timeout()
+        assert_exception(session.poll_timeout, RuntimeError, "fallback failed")
         return _snapshot_session_state(session)
 
     assert run_full_buffer_case() == run_full_buffer_failing_sink_case()
@@ -458,8 +482,12 @@ def test_outcome_sink_failures_preserve_original_control_flow_and_state(monkeypa
 
 def test_outcome_sink_failures_do_not_swallow_keyboard_interrupt_or_system_exit():
     for failure in (KeyboardInterrupt("stop"), SystemExit(2)):
-        with pytest.raises(type(failure), match=str(failure)):
+        caught = None
+        try:
             reassembler_module.emit_receiver_outcome(
                 metrics.ReceiverOutcome.SESSION_CAP_REJECTED,
                 sink=lambda _payload: (_ for _ in ()).throw(failure),
             )
+        except BaseException as error:
+            caught = error
+        assert caught is failure
