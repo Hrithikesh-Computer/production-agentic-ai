@@ -30,6 +30,7 @@ testpaths = [
     "prototypes/crm_operational_copilot",
 ]
 pythonpath = ["04-reference-implementation", "prototypes/crm_operational_copilot"]
+markers = ["slow: process-heavy validation excluded from per-mutant reruns"]
 
 [tool.ruff]
 target-version = "py310"

@@ -1,0 +1,18 @@
+scenario_id,setup,expected_persisted_state,status
+S01,Missing approval row,Approvals unchanged; CRM unchanged; no success audit,passed
+S02,PENDING approval execution attempt,Approval remains `PENDING`; CRM unchanged; no success audit,passed
+S03,Wrong scope at execution,`INVALIDATED` / `scope`; CRM unchanged; denial audit if available,passed
+S04,Requester revoked before execution,`INVALIDATED` / `revoked`; CRM unchanged,passed
+S05,Reviewer revoked before execution,`INVALIDATED` / `revoked`; CRM unchanged,passed
+S06,Expired approval,`INVALIDATED` / `expired`; CRM unchanged,passed
+S07,Stale record version,`INVALIDATED` / `stale`; CRM unchanged,passed
+S08,Policy drift,`INVALIDATED` / `policy_changed`; CRM unchanged,passed
+S09,Concurrent workers on one approval,One conditional claim wins; at most one CRM mutation,passed
+S10,Crash or CRM write failure after claim with no ledger row,"Approval stays `EXECUTING` until `recover()`, then becomes `APPROVED`; no mutation; retry uses a new execution ID and reruns checks",passed
+S11,Approvals-store failure after CRM write,CRM mutation and ledger committed; approval may remain `EXECUTING`; report unresolved and recover later,passed
+S12,Audit-store failure after CRM write,CRM mutation and ledger committed; approval is or remains unresolved (`AUDIT_PENDING` when writable); recover audit from ledger,passed
+S13,Duplicate `execution_id` replay,"Existing state; one mutation and one ledger row only; if state is `EXECUTING` or `AUDIT_PENDING`, caller receives `unresolved`, never success",passed
+S14,Reviewer denial,Approval `REJECTED`; CRM unchanged; rejection audit if available,passed
+S15,Denial-audit failure,Approval remains `REJECTED`; CRM unchanged; rejection outcome unchanged,passed
+S16,Successful execution,"Approval `COMPLETED`; CRM row, ledger, and audit share the same approval and execution IDs",passed
+S17,New `execution_id` against a `COMPLETED` approval,Execution rejected; approval remains `COMPLETED`; no additional CRM mutation or ledger row,passed

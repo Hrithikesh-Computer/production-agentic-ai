@@ -262,8 +262,102 @@ RECEIVER_OUTCOMES = {
         "    except BaseException:\n",
     ),
 }
+CRM_APPROVALS = {
+    "crm claim: ignore approved state": (
+        "  AND state = 'APPROVED'\n  AND expires_at > ?;",
+        "  AND expires_at > ?;",
+    ),
+    "crm claim: allow expiry boundary": (
+        "  AND expires_at > ?;",
+        "  AND expires_at >= ?;",
+    ),
+    "crm claim: drop expiry predicate": (
+        "  AND expires_at > ?;",
+        ";",
+    ),
+}
+CRM_STORE = {
+    "crm write: ignore approved record version": (
+        "WHERE customer_id = ? AND field_name = ? AND record_version = ?;",
+        "WHERE customer_id = ? AND field_name = ? AND (record_version = ? OR 1 = 1);",
+    ),
+    "crm write: skip execution ledger": (
+        "            self.connection.execute(\n"
+        "                \"\"\"INSERT INTO execution_ledger\n"
+        "(execution_id, approval_id, customer_id, record_version, field_name,\n"
+        " field_value, updated_at)\n"
+        "VALUES (?, ?, ?, ?, ?, ?, ?);\"\"\",\n"
+        "                (\n"
+        "                    execution_id,\n"
+        "                    approval_id,\n"
+        "                    customer_id,\n"
+        "                    record.record_version,\n"
+        "                    field_name,\n"
+        "                    proposed_value,\n"
+        "                    at,\n"
+        "                ),\n"
+        "            )\n",
+        "",
+    ),
+}
+CRM_IDENTITY = {
+    "crm identity: ignore scheduled revocation": (
+        "identity.revoked_at is not None and current >= identity.revoked_at",
+        "identity.revoked_at is not None and False",
+    ),
+}
+CRM_POLICY_SNAPSHOT = {
+    "crm policy hash: hash only rules": (
 
 
+        "    payload = policy_snapshot_payload(\n"
+        "        action=action,\n"
+        "        requester_grant=requester_grant,\n"
+        "        reviewer_grant=reviewer_grant,\n"
+        "        rules=rules,\n"
+        "        aggregation_constraints=aggregation_constraints,\n"
+        "    )\n",
+        "    payload = {\n"
+        "        \"rules\": [\n"
+        "            {\"action\": rule.action, \"effect\": rule.effect, \"priority\": rule.priority}\n"
+        "            for rule in rules\n"
+        "        ]\n"
+        "    }\n",
+    ),
+    "crm policy hash: ignore rule effect": (
+        '"effect": rule.effect,',
+        '"effect": "allow",',
+    ),
+    "crm policy hash: ignore aggregation reason": (
+        '"reason": constraint.reason',
+        '"reason": "ignored"',
+    ),
+}
+CRM_EXECUTION = {
+    "crm execute: ignore live identity scopes": (
+        "if not requester_identity.allowed or not reviewer_identity.allowed:",
+        "if False:",
+    ),
+    "crm execute: ignore approval expiry": (
+        "if approval.expires_at <= at:",
+        "if False:",
+    ),
+    "crm execute: ignore policy drift": (
+        "if current_hash != approval.policy_hash:",
+        "if False:",
+    ),
+    "crm review: change denial on audit failure": (
+        '"rejected" if not approve else "unresolved",',
+        '"unresolved",',
+    ),
+}
+CRM_MUTATION_GROUPS = {
+    "approvals_store.py": CRM_APPROVALS,
+    "crm_store.py": CRM_STORE,
+    "identity_provider.py": CRM_IDENTITY,
+    "policy_snapshot.py": CRM_POLICY_SNAPSHOT,
+    "execution_service.py": CRM_EXECUTION,
+}
 def classify_mutant_result(returncode: int | None, output: str) -> str:
     if returncode is None or returncode >= 2 or returncode == 5:
         return "harness error"
@@ -303,11 +397,6 @@ def run_module(
         try:
             shutil.copytree(tests, work / "tests")
             repo_root = Path.cwd()
-            benchmark_dir = repo_root / "benchmarks" / "response-delivery"
-            copied_benchmark_dir = work / "benchmarks" / "response-delivery"
-            copied_benchmark_dir.mkdir(parents=True, exist_ok=True)
-            for benchmark_file in benchmark_dir.glob("*.py"):
-                shutil.copy2(benchmark_file, copied_benchmark_dir / benchmark_file.name)
             for config_name in ("pyproject.toml", "pytest.ini", "tox.ini", "setup.cfg"):
                 config = repo_root / config_name
                 if config.is_file():
@@ -347,6 +436,8 @@ def run_module(
                 "-x",
                 "-p",
                 "no:cacheprovider",
+                "-m",
+                "not slow",
                 *test_paths,
                 *pytest_args,
             ]
@@ -427,6 +518,12 @@ def main() -> None:
     parser.add_argument("--impl", type=Path, default=Path("04-reference-implementation"))
     parser.add_argument("--tests", type=Path, default=Path("tests"))
     parser.add_argument("--workflow-deselect", action="append", default=[])
+    parser.add_argument(
+        "--crm-module",
+        action="append",
+        choices=tuple(CRM_MUTATION_GROUPS),
+        help="Run only the selected CRM mutation module group (repeatable).",
+    )
     args = parser.parse_args()
 
     workflow_dir = Path("prototypes/crm_operational_copilot")
@@ -459,8 +556,10 @@ def main() -> None:
         print("Baseline tests fail; fix them before mutation testing.\n" + base.stdout[-800:])
         raise SystemExit(2)
 
-    failures = run_module(args.impl, args.tests, "authority_policy.py", AUTH)
-    failures += run_module(args.impl, args.tests, "ndjson_stream.py", NDJSON)
+    failures = 0
+    if args.crm_module is None:
+        failures += run_module(args.impl, args.tests, "authority_policy.py", AUTH)
+        failures += run_module(args.impl, args.tests, "ndjson_stream.py", NDJSON)
     protocol_dir = args.impl / "adaptive-response-filter"
     protocol_tests = tuple(
         Path(name)
@@ -484,69 +583,90 @@ def main() -> None:
             "envelope.py",
         )
     )
-    failures += run_module(
-        args.impl,
-        args.tests,
-        "envelope.py",
-        PROTOCOL_ENVELOPE,
-        source_dir=protocol_dir,
-        extra_tests=protocol_tests,
-        support_files=protocol_support,
+    if args.crm_module is None:
+        failures += run_module(
+            args.impl,
+            args.tests,
+            "envelope.py",
+            PROTOCOL_ENVELOPE,
+            source_dir=protocol_dir,
+            extra_tests=protocol_tests,
+            support_files=protocol_support,
+        )
+        failures += run_module(
+            args.impl,
+            args.tests,
+            "policy.py",
+            PROTOCOL_POLICY,
+            source_dir=protocol_dir,
+            extra_tests=protocol_tests,
+            support_files=protocol_support,
+        )
+        failures += run_module(
+            args.impl,
+            args.tests,
+            "reassembler.py",
+            PROTOCOL_REASSEMBLER,
+            source_dir=protocol_dir,
+            extra_tests=protocol_tests,
+            support_files=protocol_support,
+        )
+        failures += run_module(
+            args.impl,
+            args.tests,
+            "envelope.py",
+            PROTOCOL_KEY,
+            source_dir=protocol_dir,
+            extra_tests=protocol_tests,
+            support_files=protocol_support,
+        )
+        failures += run_module(
+            args.impl,
+            args.tests,
+            "ndjson_stream.py",
+            NDJSON_STRICT,
+        )
+        failures += run_module(
+            args.impl,
+            protocol_dir,
+            "receiver_outcomes.py",
+            RECEIVER_OUTCOMES,
+            pytest_args=("tests/test_receiver_observability.py",),
+        )
+        failures += run_module(
+            args.impl,
+            args.tests,
+            "approval_workflow.py",
+            WORKFLOW,
+            source_dir=workflow_dir,
+            extra_tests=(workflow_test,),
+            support_files=(Path("crm_copilot.py"),),
+            pytest_args=(
+                ("-k", " and ".join(f"not {name}" for name in args.workflow_deselect))
+                if args.workflow_deselect
+                else ()
+            ),
+        )
+
+    crm_dir = Path("prototypes/crm_operational_copilot")
+    crm_test_files = (
+        Path("test_approvals_store.py"),
+        Path("test_crm_store.py"),
+        Path("test_crm_failure_recovery.py"),
+        Path("test_execution_service.py"),
+        Path("test_identity_provider.py"),
+        Path("test_policy_snapshot.py"),
     )
-    failures += run_module(
-        args.impl,
-        args.tests,
-        "policy.py",
-        PROTOCOL_POLICY,
-        source_dir=protocol_dir,
-        extra_tests=protocol_tests,
-        support_files=protocol_support,
-    )
-    failures += run_module(
-        args.impl,
-        args.tests,
-        "reassembler.py",
-        PROTOCOL_REASSEMBLER,
-        source_dir=protocol_dir,
-        extra_tests=protocol_tests,
-        support_files=protocol_support,
-    )
-    failures += run_module(
-        args.impl,
-        args.tests,
-        "envelope.py",
-        PROTOCOL_KEY,
-        source_dir=protocol_dir,
-        extra_tests=protocol_tests,
-        support_files=protocol_support,
-    )
-    failures += run_module(
-        args.impl,
-        args.tests,
-        "ndjson_stream.py",
-        NDJSON_STRICT,
-    )
-    failures += run_module(
-        args.impl,
-        protocol_dir,
-        "receiver_outcomes.py",
-        RECEIVER_OUTCOMES,
-        pytest_args=("tests/test_receiver_observability.py",),
-    )
-    failures += run_module(
-        args.impl,
-        args.tests,
-        "approval_workflow.py",
-        WORKFLOW,
-        source_dir=workflow_dir,
-        extra_tests=(workflow_test,),
-        support_files=(Path("crm_copilot.py"),),
-        pytest_args=(
-            ("-k", " and ".join(f"not {name}" for name in args.workflow_deselect))
-            if args.workflow_deselect
-            else ()
-        ),
-    )
+    selected_crm_modules = args.crm_module or tuple(CRM_MUTATION_GROUPS)
+    for module_name in selected_crm_modules:
+        failures += run_module(
+            args.impl,
+            args.tests,
+            module_name,
+            CRM_MUTATION_GROUPS[module_name],
+            source_dir=crm_dir,
+            extra_tests=crm_test_files,
+        )
     raise SystemExit(1 if failures else 0)
 
 

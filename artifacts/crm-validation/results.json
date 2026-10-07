@@ -1,0 +1,75 @@
+{
+  "fixed_clock": 150,
+  "id_strategy": "fixed per-scenario execution/audit counters",
+  "scenarios": [
+    {
+      "scenario_id": "S01",
+      "status": "passed"
+    },
+    {
+      "scenario_id": "S02",
+      "status": "passed"
+    },
+    {
+      "scenario_id": "S03",
+      "status": "passed"
+    },
+    {
+      "scenario_id": "S04",
+      "status": "passed"
+    },
+    {
+      "scenario_id": "S05",
+      "status": "passed"
+    },
+    {
+      "scenario_id": "S06",
+      "status": "passed"
+    },
+    {
+      "scenario_id": "S07",
+      "status": "passed"
+    },
+    {
+      "scenario_id": "S08",
+      "status": "passed"
+    },
+    {
+      "scenario_id": "S09",
+      "status": "passed"
+    },
+    {
+      "scenario_id": "S10",
+      "status": "passed"
+    },
+    {
+      "scenario_id": "S11",
+      "status": "passed"
+    },
+    {
+      "scenario_id": "S12",
+      "status": "passed"
+    },
+    {
+      "scenario_id": "S13",
+      "status": "passed"
+    },
+    {
+      "scenario_id": "S14",
+      "status": "passed"
+    },
+    {
+      "scenario_id": "S15",
+      "status": "passed"
+    },
+    {
+      "scenario_id": "S16",
+      "status": "passed"
+    },
+    {
+      "scenario_id": "S17",
+      "status": "passed"
+    }
+  ],
+  "schema_version": 1
+}
