@@ -17,11 +17,13 @@ The proposed application separates user interaction, orchestration, policy/appro
 
 ## Boundaries and unresolved design questions
 
-- Identity provider assertion and CRM authorization mapping are not present in the prototype.
-- The authority gateway and approval queue are proposed; the repo's local evaluator only returns allow/deny decisions and is not a workflow service.
+- PROPOSED: enterprise identity assertions, CRM authorization mapping, and the production authority gateway and approval queue.
+- IMPLEMENTED LOCALLY: a deterministic identity provider, SQLite approvals store, CRM records and execution ledger, and audit store used by the validation baseline. The local evaluator and execution service are not production services.
+- VALIDATED LOCALLY: the contract's S01-S17 scenarios and five rounds of 50 local processes using separate SQLite connections.
+- NOT VALIDATED: real identity-provider or CRM behavior, distributed coordination, network behavior, operational telemetry, customer deployment, or disaster recovery.
 - The model provider is an external trust boundary. Data minimization, provider retention, regional processing, and model-evaluation requirements are unresolved.
 - CRM remains the system of record and must enforce its own permissions. The proposed gateway is not a replacement for CRM authorization.
-- Audit persistence is a target container. The prototype writes local JSONL and does not provide tamper resistance, retention controls, or a production audit store.
+- The local audit store is not tamper-resistant and does not provide production retention controls or a customer-operated audit service.
 - No cloud provider is selected in these views. Deployment mapping belongs after customer environment and procurement discovery.
 
 See [ADR-002](02-decisions/ADR-002-approval-signing.md) for approval-evidence handling and [ADR-003](02-decisions/ADR-003-context-lifecycle-deferral.md) for context persistence.

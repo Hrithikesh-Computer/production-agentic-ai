@@ -38,9 +38,32 @@ The separate approval-flow simulation has these locally implemented controls:
 - Focused tests cover the successful propose/refer/approve/recheck/execute path, no execution before approval, direct connector refusal without a matching approval, self-approval denial, missing write scope, requester and reviewer revocation, stale record, expiry, rejection, replay, and event timestamps. The focused workflow test file reports 10 passing tests; the separate authority referral tests cover decision propagation and ticket behavior.
 - Local validation for the workflow: 10 focused pytest cases pass, Ruff passes, and mypy reports no issues in the workflow and focused test files when the repository-local import paths are configured.
 
-These are local prototype controls, not production guarantees. Principal and reviewer names are supplied by the caller rather than authenticated; proposals, approval state, and mock CRM data are in memory; JSONL is not tamper-resistant; and a process crash between the mock write and final audit event is not transactionally recovered. The original CLI remains read-only; only the separate workflow demonstration writes to its private in-memory fixture.
+These statements describe only the `approval_workflow.py` in-memory simulation, not the separate SQLite validation baseline below. They are local prototype controls, not production guarantees. Principal and reviewer names are supplied by the caller rather than authenticated; proposals, approval state, and mock CRM data are in memory; JSONL is not tamper-resistant; and a process crash between the mock write and final audit event is not transactionally recovered. The original CLI remains read-only; only the separate workflow demonstration writes to its private in-memory fixture.
 
 Focused tests observed 6 passing CRM cases after these controls were added. The prototype and its test file pass Ruff and mypy.
+
+## SQLite validation baseline
+
+| Label | Assessment |
+|---|---|
+| IMPLEMENTED LOCALLY | `identity_provider.py`, the separate approvals/CRM/audit SQLite stores, canonical policy snapshots using `authority_policy.py`, the execution service, and on-demand `recover()`. |
+| VALIDATED LOCALLY | S01-S17 each have one harness result row; persisted state is checked for each scenario. The concurrency case uses separate processes/connections, a start barrier, 50 workers, and five rounds. CRM-write, approvals-store, and audit-store failures plus recovery are exercised with deterministic injection. Thirteen targeted CRM mutants were killed with no survivors or mutation-harness errors. |
+| PROPOSED | The broader enterprise CRM copilot, production authority gateway, authenticated identity integration, and operational audit service. |
+| NOT VALIDATED | Real IdP or CRM behavior, distributed/multi-host concurrency, network behavior, telemetry, customer usage, deployment, disaster recovery, and production readiness. |
+
+## Evidence-level assessment
+
+The evidence level remains L2; this assessment does not change the repository's evidence-level field.
+
+| Criterion | Status | Basis |
+|---|---|---|
+| L1 — Executable | IMPLEMENTED LOCALLY | The deterministic SQLite workflow and stores are executable local reference code. |
+| L2 — Reproducible | VALIDATED LOCALLY | The harness regenerates deterministic `results.json` and `scenario-matrix.csv`, checks exactly S01-S17, and exercises local concurrency and recovery. This remains bounded local evidence. |
+| L3 — Environment validated | NOT VALIDATED | No representative external identity provider, CRM, or bounded non-production environment was used. |
+| L4 — Operational | NOT VALIDATED | There is no deployment, production telemetry, named operational ownership, or operational recovery evidence. |
+| L5 — Production validated | NOT VALIDATED | There is no customer or production evidence. |
+
+The full enterprise architecture remains PROPOSED. Local validation does not establish production readiness, cross-store atomicity, tamper-proof audit, or distributed coordination.
 
 ## Evidence required
 

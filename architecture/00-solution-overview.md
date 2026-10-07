@@ -26,9 +26,20 @@ These are target outcomes, not demonstrated repository capabilities.
 
 ## Repository evidence versus target design
 
-The original CRM CLI has static mock records, deterministic action selection, local read-scope checks, read-only behavior, and JSONL run logging. A separate local simulation now exercises a bounded in-memory write proposal, `refer` policy outcome, distinct reviewer method, fresh scope checks, and audit events. Neither has a real CRM/REST integration, LLM, authenticated identity-to-scope mapping, or durable approval workflow ([prototype README](../prototypes/crm_operational_copilot/README.md), [evidence](../prototypes/crm_operational_copilot/EVIDENCE.md)). The authority evaluator is a separate bounded library used by the simulation, not a production policy service ([authority evaluator](../04-reference-implementation/authority_policy.py)).
+The original CRM CLI has static mock records, deterministic action selection, local read-scope checks, read-only behavior, and JSONL run logging. The earlier `approval_workflow.py` simulation exercises an in-memory write proposal and review. A separate SQLite-backed validation baseline now exercises local identity and scope rechecks, durable approval state, a CRM execution ledger, audit recovery, and local process concurrency ([prototype README](../prototypes/crm_operational_copilot/README.md), [evidence](../prototypes/crm_operational_copilot/EVIDENCE.md)). Neither workflow has a real CRM/REST integration, authenticated enterprise identity mapping, or production policy service. The authority evaluator remains a bounded local library ([authority evaluator](../04-reference-implementation/authority_policy.py)).
 
-The C4 views and subsequent decisions describe a **proposed target**. The local simulation demonstrates only a narrow in-process sequence; the durable approval queue, deployed authority gateway, live CRM connector, identity provider, model service, and durable audit store are target containers or external systems, not implemented components in the repository.
+The C4 views and subsequent decisions describe a **proposed target**. The SQLite baseline is a local deterministic implementation, not the enterprise identity provider, live CRM connector, deployed authority gateway, model service, distributed approval queue, or operational audit service.
+
+## Local validation status
+
+| Status | Scope |
+|---|---|
+| PROPOSED | Enterprise CRM copilot architecture, production identity integration, CRM authorization mapping, deployment, and operational ownership. |
+| IMPLEMENTED LOCALLY | Deterministic identity provider; separate SQLite approvals, CRM/ledger, and audit stores; policy snapshot; ordered execution and on-demand recovery. |
+| VALIDATED LOCALLY | Contract scenarios S01-S17, persisted-state checks, deterministic evidence generation, and five rounds of 50-process contention. |
+| NOT VALIDATED | Real IdP or CRM behavior, distributed concurrency, network behavior, telemetry, customers, deployment, disaster recovery, and production readiness. |
+
+The CRM workflow's evidence level remains L2. This local status summary does not change that evidence-level field or any ADR status.
 
 ## Primary flow
 
