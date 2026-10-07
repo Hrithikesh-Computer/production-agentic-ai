@@ -397,12 +397,32 @@ def run_module(
         try:
             shutil.copytree(tests, work / "tests")
             repo_root = Path.cwd()
+            benchmark_dir = repo_root / "benchmarks" / "response-delivery"
+            copied_benchmark_dir = work / "benchmarks" / "response-delivery"
+            copied_benchmark_dir.mkdir(parents=True, exist_ok=True)
+            for benchmark_file in benchmark_dir.glob("*.py"):
+                shutil.copy2(benchmark_file, copied_benchmark_dir / benchmark_file.name)
+            crm_prototype = repo_root / "prototypes" / "crm_operational_copilot"
+            copied_crm_prototype = (
+                work / "prototypes" / "crm_operational_copilot"
+            )
+            copied_crm_prototype.mkdir(parents=True, exist_ok=True)
+            for prototype_file in crm_prototype.glob("*.py"):
+                shutil.copy2(
+                    prototype_file, copied_crm_prototype / prototype_file.name
+                )
+            scripts_dir = repo_root / "scripts"
+            copied_scripts_dir = work / "scripts"
+            copied_scripts_dir.mkdir(parents=True, exist_ok=True)
+            crm_evidence_checker = scripts_dir / "check_crm_validation_evidence.py"
+            if crm_evidence_checker.is_file():
+                shutil.copy2(crm_evidence_checker, copied_scripts_dir)
             for config_name in ("pyproject.toml", "pytest.ini", "tox.ini", "setup.cfg"):
                 config = repo_root / config_name
                 if config.is_file():
                     shutil.copy2(config, work / config_name)
             test_paths = [str(work / "tests")]
-            python_paths: list[str] = []
+            python_paths: list[str] = [str(copied_crm_prototype)]
             copied_impl = work / impl
             if impl.is_dir() and copied_impl != work / "impl":
                 shutil.copytree(impl, copied_impl, dirs_exist_ok=True)
