@@ -53,7 +53,7 @@ Focused tests observed 6 passing CRM cases after these controls were added. The 
 
 ## Evidence-level assessment
 
-The evidence level remains L2; this assessment does not change the repository's evidence-level field.
+The SQLite design meets the local evidence criteria for L1 (Executable) and L2 (Reproducible). This is an assessment of the new local design; the repository-level CRM workflow field remains L2 and is unchanged.
 
 | Criterion | Status | Basis |
 |---|---|---|
