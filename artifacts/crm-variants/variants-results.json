@@ -1,0 +1,891 @@
+{
+  "claim_races": {
+    "baseline": {
+      "accepted_claims": 1,
+      "passed": true,
+      "single_winner_assertion": true,
+      "workers": 50
+    },
+    "broken-control": {
+      "accepted_claims": 50,
+      "passed": false,
+      "single_winner_assertion": false,
+      "workers": 50
+    },
+    "claim-b": {
+      "accepted_claims": 1,
+      "passed": true,
+      "single_winner_assertion": true,
+      "workers": 50
+    },
+    "store-layout-b": {
+      "accepted_claims": 1,
+      "passed": true,
+      "single_winner_assertion": true,
+      "workers": 50
+    }
+  },
+  "combinations": [
+    {
+      "axis": "baseline",
+      "variant": "baseline"
+    },
+    {
+      "axis": "store_layout",
+      "variant": "store-layout-b"
+    },
+    {
+      "axis": "no_write_recovery",
+      "variant": "recovery-b"
+    },
+    {
+      "axis": "begin_immediate_claim",
+      "variant": "claim-b"
+    },
+    {
+      "axis": "unsafe_claim_control",
+      "variant": "broken-control"
+    }
+  ],
+  "focused_checks": {
+    "results": {
+      "test_n50_claim_race_passes_for_atomic_claim_variants": true,
+      "test_n50_single_winner_assertion_fails_on_broken_control": true,
+      "test_s10_no_write_recovery_invalidates_and_requires_fresh_review": true,
+      "test_s11_shared_transaction_rolls_back_after_approval_store_failure": true,
+      "test_s12_shared_transaction_rolls_back_crm_and_ledger_on_audit_failure": true
+    },
+    "return_code": 0
+  },
+  "invariant_failures_by_variant": {
+    "baseline": [],
+    "broken-control": [
+      "S09: single-winner approval claim failed; 50 claim calls accepted"
+    ],
+    "claim-b": [],
+    "recovery-b": [],
+    "store-layout-b": []
+  },
+  "scenario_ids": [
+    "S01",
+    "S02",
+    "S03",
+    "S04",
+    "S05",
+    "S06",
+    "S07",
+    "S08",
+    "S09",
+    "S10",
+    "S11",
+    "S12",
+    "S13",
+    "S14",
+    "S15",
+    "S16",
+    "S17"
+  ],
+  "schema_version": 1,
+  "variants": [
+    {
+      "axis": "baseline",
+      "pytest_return_code": 0,
+      "scenario_assertions": [
+        {
+          "assertion_passed": true,
+          "axis": "baseline",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S01",
+          "status": "pass",
+          "variant": "baseline"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "baseline",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S02",
+          "status": "pass",
+          "variant": "baseline"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "baseline",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S03",
+          "status": "pass",
+          "variant": "baseline"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "baseline",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S04",
+          "status": "pass",
+          "variant": "baseline"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "baseline",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S05",
+          "status": "pass",
+          "variant": "baseline"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "baseline",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S06",
+          "status": "pass",
+          "variant": "baseline"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "baseline",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S07",
+          "status": "pass",
+          "variant": "baseline"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "baseline",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S08",
+          "status": "pass",
+          "variant": "baseline"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "baseline",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "1 of 50 claims accepted; exactly one winner required",
+          "scenario_id": "S09",
+          "status": "pass",
+          "variant": "baseline"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "baseline",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S10",
+          "status": "pass",
+          "variant": "baseline"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "baseline",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S11",
+          "status": "pass",
+          "variant": "baseline"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "baseline",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S12",
+          "status": "pass",
+          "variant": "baseline"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "baseline",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S13",
+          "status": "pass",
+          "variant": "baseline"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "baseline",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S14",
+          "status": "pass",
+          "variant": "baseline"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "baseline",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S15",
+          "status": "pass",
+          "variant": "baseline"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "baseline",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S16",
+          "status": "pass",
+          "variant": "baseline"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "baseline",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S17",
+          "status": "pass",
+          "variant": "baseline"
+        }
+      ],
+      "variant": "baseline"
+    },
+    {
+      "axis": "store_layout",
+      "pytest_return_code": 1,
+      "scenario_assertions": [
+        {
+          "assertion_passed": true,
+          "axis": "store_layout",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S01",
+          "status": "pass",
+          "variant": "store-layout-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "store_layout",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S02",
+          "status": "pass",
+          "variant": "store-layout-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "store_layout",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S03",
+          "status": "pass",
+          "variant": "store-layout-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "store_layout",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S04",
+          "status": "pass",
+          "variant": "store-layout-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "store_layout",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S05",
+          "status": "pass",
+          "variant": "store-layout-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "store_layout",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S06",
+          "status": "pass",
+          "variant": "store-layout-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "store_layout",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S07",
+          "status": "pass",
+          "variant": "store-layout-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "store_layout",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S08",
+          "status": "pass",
+          "variant": "store-layout-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "store_layout",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "1 of 50 claims accepted; exactly one winner required",
+          "scenario_id": "S09",
+          "status": "pass",
+          "variant": "store-layout-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "store_layout",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S10",
+          "status": "pass",
+          "variant": "store-layout-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "store_layout",
+          "baseline_scenario_test_passed": false,
+          "persisted_state_assertion": "APPROVED; CRM record, ledger, and audit all rolled back after approval-state persistence failure",
+          "scenario_id": "S11",
+          "status": "pass",
+          "variant": "store-layout-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "store_layout",
+          "baseline_scenario_test_passed": false,
+          "persisted_state_assertion": "APPROVED; CRM record, ledger, and audit all rolled back after audit failure",
+          "scenario_id": "S12",
+          "status": "pass",
+          "variant": "store-layout-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "store_layout",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S13",
+          "status": "pass",
+          "variant": "store-layout-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "store_layout",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S14",
+          "status": "pass",
+          "variant": "store-layout-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "store_layout",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S15",
+          "status": "pass",
+          "variant": "store-layout-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "store_layout",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S16",
+          "status": "pass",
+          "variant": "store-layout-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "store_layout",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S17",
+          "status": "pass",
+          "variant": "store-layout-b"
+        }
+      ],
+      "variant": "store-layout-b"
+    },
+    {
+      "axis": "no_write_recovery",
+      "pytest_return_code": 1,
+      "scenario_assertions": [
+        {
+          "assertion_passed": true,
+          "axis": "no_write_recovery",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S01",
+          "status": "pass",
+          "variant": "recovery-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "no_write_recovery",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S02",
+          "status": "pass",
+          "variant": "recovery-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "no_write_recovery",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S03",
+          "status": "pass",
+          "variant": "recovery-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "no_write_recovery",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S04",
+          "status": "pass",
+          "variant": "recovery-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "no_write_recovery",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S05",
+          "status": "pass",
+          "variant": "recovery-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "no_write_recovery",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S06",
+          "status": "pass",
+          "variant": "recovery-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "no_write_recovery",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S07",
+          "status": "pass",
+          "variant": "recovery-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "no_write_recovery",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S08",
+          "status": "pass",
+          "variant": "recovery-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "no_write_recovery",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "1 of 50 claims accepted; exactly one winner required",
+          "scenario_id": "S09",
+          "status": "pass",
+          "variant": "recovery-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "no_write_recovery",
+          "baseline_scenario_test_passed": false,
+          "persisted_state_assertion": "INVALIDATED/crash_no_write; execution_id cleared; no CRM ledger or audit; fresh review required",
+          "scenario_id": "S10",
+          "status": "pass",
+          "variant": "recovery-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "no_write_recovery",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S11",
+          "status": "pass",
+          "variant": "recovery-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "no_write_recovery",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S12",
+          "status": "pass",
+          "variant": "recovery-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "no_write_recovery",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S13",
+          "status": "pass",
+          "variant": "recovery-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "no_write_recovery",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S14",
+          "status": "pass",
+          "variant": "recovery-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "no_write_recovery",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S15",
+          "status": "pass",
+          "variant": "recovery-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "no_write_recovery",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S16",
+          "status": "pass",
+          "variant": "recovery-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "no_write_recovery",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S17",
+          "status": "pass",
+          "variant": "recovery-b"
+        }
+      ],
+      "variant": "recovery-b"
+    },
+    {
+      "axis": "begin_immediate_claim",
+      "pytest_return_code": 0,
+      "scenario_assertions": [
+        {
+          "assertion_passed": true,
+          "axis": "begin_immediate_claim",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S01",
+          "status": "pass",
+          "variant": "claim-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "begin_immediate_claim",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S02",
+          "status": "pass",
+          "variant": "claim-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "begin_immediate_claim",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S03",
+          "status": "pass",
+          "variant": "claim-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "begin_immediate_claim",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S04",
+          "status": "pass",
+          "variant": "claim-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "begin_immediate_claim",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S05",
+          "status": "pass",
+          "variant": "claim-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "begin_immediate_claim",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S06",
+          "status": "pass",
+          "variant": "claim-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "begin_immediate_claim",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S07",
+          "status": "pass",
+          "variant": "claim-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "begin_immediate_claim",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S08",
+          "status": "pass",
+          "variant": "claim-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "begin_immediate_claim",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "1 of 50 claims accepted; exactly one winner required",
+          "scenario_id": "S09",
+          "status": "pass",
+          "variant": "claim-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "begin_immediate_claim",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S10",
+          "status": "pass",
+          "variant": "claim-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "begin_immediate_claim",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S11",
+          "status": "pass",
+          "variant": "claim-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "begin_immediate_claim",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S12",
+          "status": "pass",
+          "variant": "claim-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "begin_immediate_claim",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S13",
+          "status": "pass",
+          "variant": "claim-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "begin_immediate_claim",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S14",
+          "status": "pass",
+          "variant": "claim-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "begin_immediate_claim",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S15",
+          "status": "pass",
+          "variant": "claim-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "begin_immediate_claim",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S16",
+          "status": "pass",
+          "variant": "claim-b"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "begin_immediate_claim",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S17",
+          "status": "pass",
+          "variant": "claim-b"
+        }
+      ],
+      "variant": "claim-b"
+    },
+    {
+      "axis": "unsafe_claim_control",
+      "pytest_return_code": 0,
+      "scenario_assertions": [
+        {
+          "assertion_passed": true,
+          "axis": "unsafe_claim_control",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S01",
+          "status": "pass",
+          "variant": "broken-control"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "unsafe_claim_control",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S02",
+          "status": "pass",
+          "variant": "broken-control"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "unsafe_claim_control",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S03",
+          "status": "pass",
+          "variant": "broken-control"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "unsafe_claim_control",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S04",
+          "status": "pass",
+          "variant": "broken-control"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "unsafe_claim_control",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S05",
+          "status": "pass",
+          "variant": "broken-control"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "unsafe_claim_control",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S06",
+          "status": "pass",
+          "variant": "broken-control"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "unsafe_claim_control",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S07",
+          "status": "pass",
+          "variant": "broken-control"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "unsafe_claim_control",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S08",
+          "status": "pass",
+          "variant": "broken-control"
+        },
+        {
+          "assertion_passed": false,
+          "axis": "unsafe_claim_control",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "failed: 50 of 50 unsafely accepted claims",
+          "scenario_id": "S09",
+          "status": "fail",
+          "variant": "broken-control"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "unsafe_claim_control",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S10",
+          "status": "pass",
+          "variant": "broken-control"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "unsafe_claim_control",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S11",
+          "status": "pass",
+          "variant": "broken-control"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "unsafe_claim_control",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S12",
+          "status": "pass",
+          "variant": "broken-control"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "unsafe_claim_control",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S13",
+          "status": "pass",
+          "variant": "broken-control"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "unsafe_claim_control",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S14",
+          "status": "pass",
+          "variant": "broken-control"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "unsafe_claim_control",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S15",
+          "status": "pass",
+          "variant": "broken-control"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "unsafe_claim_control",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S16",
+          "status": "pass",
+          "variant": "broken-control"
+        },
+        {
+          "assertion_passed": true,
+          "axis": "unsafe_claim_control",
+          "baseline_scenario_test_passed": true,
+          "persisted_state_assertion": "unchanged S01-S17 persisted-state assertion passed",
+          "scenario_id": "S17",
+          "status": "pass",
+          "variant": "broken-control"
+        }
+      ],
+      "variant": "broken-control"
+    }
+  ]
+}

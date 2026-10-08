@@ -1,0 +1,86 @@
+variant,axis,scenario_id,status,baseline_scenario_test_passed,persisted_state_assertion,assertion_passed
+baseline,baseline,S01,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+baseline,baseline,S02,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+baseline,baseline,S03,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+baseline,baseline,S04,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+baseline,baseline,S05,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+baseline,baseline,S06,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+baseline,baseline,S07,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+baseline,baseline,S08,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+baseline,baseline,S09,pass,True,1 of 50 claims accepted; exactly one winner required,True
+baseline,baseline,S10,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+baseline,baseline,S11,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+baseline,baseline,S12,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+baseline,baseline,S13,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+baseline,baseline,S14,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+baseline,baseline,S15,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+baseline,baseline,S16,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+baseline,baseline,S17,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+store-layout-b,store_layout,S01,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+store-layout-b,store_layout,S02,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+store-layout-b,store_layout,S03,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+store-layout-b,store_layout,S04,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+store-layout-b,store_layout,S05,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+store-layout-b,store_layout,S06,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+store-layout-b,store_layout,S07,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+store-layout-b,store_layout,S08,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+store-layout-b,store_layout,S09,pass,True,1 of 50 claims accepted; exactly one winner required,True
+store-layout-b,store_layout,S10,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+store-layout-b,store_layout,S11,pass,False,"APPROVED; CRM record, ledger, and audit all rolled back after approval-state persistence failure",True
+store-layout-b,store_layout,S12,pass,False,"APPROVED; CRM record, ledger, and audit all rolled back after audit failure",True
+store-layout-b,store_layout,S13,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+store-layout-b,store_layout,S14,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+store-layout-b,store_layout,S15,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+store-layout-b,store_layout,S16,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+store-layout-b,store_layout,S17,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+recovery-b,no_write_recovery,S01,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+recovery-b,no_write_recovery,S02,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+recovery-b,no_write_recovery,S03,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+recovery-b,no_write_recovery,S04,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+recovery-b,no_write_recovery,S05,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+recovery-b,no_write_recovery,S06,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+recovery-b,no_write_recovery,S07,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+recovery-b,no_write_recovery,S08,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+recovery-b,no_write_recovery,S09,pass,True,1 of 50 claims accepted; exactly one winner required,True
+recovery-b,no_write_recovery,S10,pass,False,INVALIDATED/crash_no_write; execution_id cleared; no CRM ledger or audit; fresh review required,True
+recovery-b,no_write_recovery,S11,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+recovery-b,no_write_recovery,S12,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+recovery-b,no_write_recovery,S13,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+recovery-b,no_write_recovery,S14,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+recovery-b,no_write_recovery,S15,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+recovery-b,no_write_recovery,S16,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+recovery-b,no_write_recovery,S17,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+claim-b,begin_immediate_claim,S01,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+claim-b,begin_immediate_claim,S02,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+claim-b,begin_immediate_claim,S03,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+claim-b,begin_immediate_claim,S04,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+claim-b,begin_immediate_claim,S05,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+claim-b,begin_immediate_claim,S06,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+claim-b,begin_immediate_claim,S07,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+claim-b,begin_immediate_claim,S08,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+claim-b,begin_immediate_claim,S09,pass,True,1 of 50 claims accepted; exactly one winner required,True
+claim-b,begin_immediate_claim,S10,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+claim-b,begin_immediate_claim,S11,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+claim-b,begin_immediate_claim,S12,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+claim-b,begin_immediate_claim,S13,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+claim-b,begin_immediate_claim,S14,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+claim-b,begin_immediate_claim,S15,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+claim-b,begin_immediate_claim,S16,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+claim-b,begin_immediate_claim,S17,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+broken-control,unsafe_claim_control,S01,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+broken-control,unsafe_claim_control,S02,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+broken-control,unsafe_claim_control,S03,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+broken-control,unsafe_claim_control,S04,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+broken-control,unsafe_claim_control,S05,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+broken-control,unsafe_claim_control,S06,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+broken-control,unsafe_claim_control,S07,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+broken-control,unsafe_claim_control,S08,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+broken-control,unsafe_claim_control,S09,fail,True,failed: 50 of 50 unsafely accepted claims,False
+broken-control,unsafe_claim_control,S10,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+broken-control,unsafe_claim_control,S11,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+broken-control,unsafe_claim_control,S12,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+broken-control,unsafe_claim_control,S13,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+broken-control,unsafe_claim_control,S14,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+broken-control,unsafe_claim_control,S15,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+broken-control,unsafe_claim_control,S16,pass,True,unchanged S01-S17 persisted-state assertion passed,True
+broken-control,unsafe_claim_control,S17,pass,True,unchanged S01-S17 persisted-state assertion passed,True

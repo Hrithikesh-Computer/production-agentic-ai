@@ -1,0 +1,8 @@
+{
+  "local_fakes_only": true,
+  "os_name": "nt",
+  "platform": "Windows-11-10.0.26300-SP0",
+  "python_implementation": "CPython",
+  "python_version": "3.14.6",
+  "sqlite_version": "3.50.4"
+}
