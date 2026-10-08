@@ -50,7 +50,9 @@ notes/
 local/
 tmp/
 temp/
-artifacts/
+artifacts/*
+!artifacts/crm-variants/
+!artifacts/crm-variants/**
 reports/
 output/
 _site/
