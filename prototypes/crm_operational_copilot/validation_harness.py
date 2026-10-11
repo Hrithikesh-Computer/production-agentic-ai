@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import platform
 import subprocess
@@ -26,6 +27,20 @@ CONCURRENCY_TEST_PATH = (
 )
 EXPECTED_SCENARIO_IDS = tuple(f"S{number:02d}" for number in range(1, 18))
 FIXED_CLOCK = 150
+VALIDATION_INPUTS = (
+    "pyproject.toml",
+    "requirements-dev.lock",
+    "04-reference-implementation/authority_policy.py",
+    "prototypes/crm_operational_copilot/VALIDATION-CONTRACT.md",
+    "prototypes/crm_operational_copilot/approvals_store.py",
+    "prototypes/crm_operational_copilot/audit_store.py",
+    "prototypes/crm_operational_copilot/crm_store.py",
+    "prototypes/crm_operational_copilot/execution_service.py",
+    "prototypes/crm_operational_copilot/identity_provider.py",
+    "prototypes/crm_operational_copilot/policy_snapshot.py",
+    "prototypes/crm_operational_copilot/validation_harness.py",
+    "tests/test_crm_validation_scenarios.py",
+)
 
 
 @dataclass(frozen=True)
@@ -87,6 +102,17 @@ def _commit_hash() -> str:
         text=True,
     )
     return result.stdout.strip()
+
+
+def source_snapshot_sha256() -> str:
+    digest = hashlib.sha256()
+    for relative_path in VALIDATION_INPUTS:
+        path = ROOT / relative_path
+        digest.update(relative_path.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
 
 
 def _run_scenarios(scenarios: list[Scenario]) -> tuple[list[dict[str, str]], int, str]:
@@ -206,6 +232,7 @@ def run(output_directory: Path) -> int:
     environment = {
         "commit": _commit_hash(),
         "python_version": platform.python_version(),
+        "source_snapshot_sha256": source_snapshot_sha256(),
         "started_at_utc": started_at,
         "completed_at_utc": completed_at,
     }

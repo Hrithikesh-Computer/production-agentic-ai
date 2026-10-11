@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,34 @@ THRESHOLDS: dict[str, tuple[float, float]] = {
 def main() -> int:
     report_path = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("coverage.json")
     report: dict[str, Any] = json.loads(report_path.read_text(encoding="utf-8"))
+    timestamp_text = report.get("meta", {}).get("timestamp")
+    try:
+        generated_at = datetime.fromisoformat(timestamp_text.replace("Z", "+00:00"))
+        if generated_at.tzinfo is None:
+            generated_at = generated_at.replace(tzinfo=timezone.utc)
+    except (AttributeError, TypeError, ValueError):
+        print(f"coverage report has missing or invalid timestamp: {report_path}")
+        return 1
+
+    newer_sources = []
+    for relative_path in report.get("files", {}):
+        source_path = Path(relative_path)
+        if not source_path.is_absolute():
+            source_path = report_path.resolve().parent / source_path
+        if source_path.exists():
+            modified_at = datetime.fromtimestamp(
+                source_path.stat().st_mtime, tz=timezone.utc
+            )
+            if modified_at > generated_at:
+                newer_sources.append(source_path)
+    if newer_sources:
+        print(
+            "coverage report is stale; source files changed after its timestamp:"
+        )
+        for source_path in newer_sources:
+            print(f"  {source_path}")
+        return 1
+
     rows: dict[str, dict[str, float]] = {}
     for path, file_report in report.get("files", {}).items():
         name = Path(path).name

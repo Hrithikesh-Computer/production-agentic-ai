@@ -18,33 +18,40 @@ Never convert:
 
 ## Evidence Classifications
 
-Classify every significant claim with the most accurate label:
+Do not force implementation status, evidence strength, and proposal type into
+one mutually exclusive label. For each significant claim, report one applicable
+implementation-status label and one evidence-strength label; add a proposal or
+external-dependency label when relevant.
 
-| Classification | Meaning |
+### Implementation status
+
+| Label | Meaning |
 |---|---|
-| **PROVEN** | Directly demonstrated by repository code, executable tests, measured benchmark, CI result, or other concrete repository evidence. |
-| **DOCUMENTED CAPABILITY** | Explicitly described in repository documentation but not independently verified through implementation or measurement. |
-| **IMPLEMENTED** | Present in executable code, but not necessarily production-validated. |
-| **VERIFIED** | Implemented and supported by tests, benchmarks, CI, or other concrete validation evidence. |
-| **DESIGN INTENT** | A proposed architectural principle, desired behavior, research direction, or intended future capability. |
-| **HYPOTHESIS** | A technically plausible expectation that requires implementation or measurement to validate. |
-| **NOT IMPLEMENTED** | The repository explicitly indicates that the capability does not exist, or the reviewed evidence demonstrates it is not implemented. |
-| **NOT IN REPOSITORY** | The referenced artifact, service, pipeline, configuration, or implementation cannot be found in the reviewed repository. |
-| **NOT DOCUMENTED** | The repository provides insufficient documentation to establish the claim. |
-| **NOT VERIFIED** | The capability may exist, but the reviewed evidence does not demonstrate that it works as claimed. |
-| **EXTERNALLY DEPENDENT** | Depends on systems, repositories, infrastructure, cloud services, datasets, or production environments outside the reviewed repository and therefore cannot be independently verified. |
-| **PROVEN ABSENT** | Use only when repository evidence **explicitly** establishes that the capability does not exist. |
+| **IMPLEMENTED** | Relevant executable code or configuration is present. This says nothing by itself about whether behavior works. |
+| **DOCUMENTED ONLY** | Documentation describes the capability, but the reviewed repository contains no matching executable implementation. |
+| **NOT FOUND IN REVIEWED REPOSITORY** | A specifically referenced artifact or service was not found. This is a repository-scope statement, not a claim about the wider system. |
 
-### Mandatory distinction
+### Evidence strength
 
-**NOT IN REPOSITORY** must never be treated as **PROVEN ABSENT**.
+| Label | Meaning |
+|---|---|
+| **VERIFIED** | A stated behavior passed a named, repeatable test or validation; cite the exact evidence and scope. |
+| **MEASURED** | A quantity was observed under stated benchmark conditions; cite artifact, environment, and method. |
+| **FORMALLY PROVEN** | Established by a formal derivation or proof. Never use this for a passing test. |
+| **UNVERIFIED** | The reviewed evidence does not establish that the claim works as stated. |
 
-Correct wording examples:
-- "The reviewed repository does not contain the referenced EMR pipeline."
-- "The existence and implementation of this pipeline cannot be verified from the reviewed repository."
+### Proposal and boundary labels
 
-Incorrect wording:
-- "The system does not have an EMR pipeline."
+| Label | Meaning |
+|---|---|
+| **DESIGN INTENT** | A proposed architectural principle, desired behavior, or future capability. |
+| **HYPOTHESIS** | A technically plausible expectation requiring implementation or measurement. |
+| **EXTERNALLY DEPENDENT** | Depends on external systems, infrastructure, datasets, or production conditions unavailable for repository verification. |
+
+Absence from a repository search is never proof that a wider system lacks a
+capability. Say, "The reviewed repository does not contain the referenced
+pipeline," not, "The system does not have a pipeline." Do not use a standalone
+"PROVEN ABSENT" label.
 
 ## Customer Claim Safety
 
@@ -120,7 +127,7 @@ Do not infer effectiveness merely from the presence of RAG, agents, LangGraph, g
 Every evaluation must contain:
 
 1. **Executive Summary** — What the repository actually represents.
-2. **Repository Evidence Boundary** — Summary of proven / implemented / verified / documented / conceptual / not implemented / not in repository / not verified / externally dependent / proven absent.
+2. **Repository Evidence Boundary** — Summary using the defined primary classifications. A claim may be implemented but unverified; distinguish a measured quantity from a tested behavior. Use `NOT IN REPOSITORY` for a missing artifact, not as a system-wide absence claim.
 3. **Architecture Assessment** — Using the evidence classifications above.
 4. **Performance Evidence** — Measured vs hypothesis.
 5. **AI / Agent Evaluation** — Design principles vs implemented/evaluated capabilities.

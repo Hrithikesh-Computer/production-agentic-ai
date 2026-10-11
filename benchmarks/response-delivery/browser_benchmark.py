@@ -686,9 +686,13 @@ class Handler(BaseHTTPRequestHandler):
           else "browser_results_standalone_compression.json"
         )
         output_path = Path(__file__).with_name(result_name)
-        output_path.write_text(
-            json.dumps(results, indent=2) + "\n", encoding="utf-8"
-        )
+        try:
+          with output_path.open("x", encoding="utf-8") as output_file:
+            json.dump(results, output_file, indent=2)
+            output_file.write("\n")
+        except FileExistsError:
+          self.send_error(409, "refusing to overwrite existing benchmark evidence")
+          return
         response = b"saved"
         self.send_response(200)
         self.send_header("Content-Length", str(len(response)))

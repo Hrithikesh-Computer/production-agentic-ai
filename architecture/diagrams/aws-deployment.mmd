@@ -14,6 +14,8 @@ flowchart LR
       Link["VPC Link + internal load balancer"] --> Agent["ECS Fargate\nAgent API / orchestrator"]
       Agent --> Authority["ECS Fargate\nAuthority / approval gateway"]
       Agent --> Connector["ECS Fargate\nCRM connector"]
+      Connector -->|fresh action-bound check| Authority
+      Authority -->|allow or deny decision| Connector
       Authority --> Queue["SQS approval work queue"]
       Authority --> State["DynamoDB approval state"]
       Connector --> Egress["Controlled CRM egress\nNAT/firewall or VPN/DX"]

@@ -38,6 +38,7 @@ class Approval:
     reason: InvalidationReason | None = None
     execution_id: str | None = None
     approval_version: int = 1
+    reviewed_at: int | None = None
 
 
 class ApprovalsStore:
@@ -71,10 +72,19 @@ class ApprovalsStore:
                     'expired','stale','revoked','policy_changed','scope'
                 )),
                 execution_id TEXT NULL UNIQUE,
-                approval_version INTEGER NOT NULL DEFAULT 1
+                approval_version INTEGER NOT NULL DEFAULT 1,
+                reviewed_at INTEGER NULL
             )
             """
         )
+        columns = {
+            row["name"]
+            for row in self.connection.execute("PRAGMA table_info(approvals)")
+        }
+        if "reviewed_at" not in columns:
+            self.connection.execute(
+                "ALTER TABLE approvals ADD COLUMN reviewed_at INTEGER NULL"
+            )
         self.connection.commit()
 
     def close(self) -> None:
@@ -93,8 +103,8 @@ class ApprovalsStore:
                 approval_id, proposal_id, requester_id, reviewer_id, customer_id,
                 field_name, proposed_value, previous_value, record_version,
                 policy_hash, created_at, expires_at, approved_at, state, reason,
-                execution_id, approval_version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                execution_id, approval_version, reviewed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 approval.approval_id,
@@ -114,6 +124,7 @@ class ApprovalsStore:
                 approval.reason,
                 approval.execution_id,
                 approval.approval_version,
+                approval.reviewed_at,
             ),
         )
         self.connection.commit()
@@ -137,15 +148,29 @@ ORDER BY approval_id"""
     def set_review(
         self, approval_id: str, reviewer_id: str, at: int, approve: bool
     ) -> bool:
+        cursor = self.connection.execute(
+            """
+            UPDATE approvals
+            SET reviewer_id = ?, approved_at = ?, reviewed_at = ?,
+                state = 'AUDIT_PENDING',
+                approval_version = approval_version + 1
+            WHERE approval_id = ? AND state = 'PENDING'
+            """,
+            (reviewer_id, at if approve else None, at, approval_id),
+        )
+        self.connection.commit()
+        return cursor.rowcount == 1
+
+    def finalize_review(self, approval_id: str, approve: bool) -> bool:
         state: ApprovalState = "APPROVED" if approve else "REJECTED"
         cursor = self.connection.execute(
             """
             UPDATE approvals
-            SET reviewer_id = ?, approved_at = ?, state = ?,
-                approval_version = approval_version + 1
-            WHERE approval_id = ? AND state = 'PENDING'
+            SET state = ?, approval_version = approval_version + 1
+            WHERE approval_id = ? AND state = 'AUDIT_PENDING'
+              AND execution_id IS NULL
             """,
-            (reviewer_id, at if approve else None, state, approval_id),
+            (state, approval_id),
         )
         self.connection.commit()
         return cursor.rowcount == 1

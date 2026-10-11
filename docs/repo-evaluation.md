@@ -2,6 +2,8 @@
 
 **Reviewed:** 2026-10-03
 
+**Status:** Historical snapshot, superseded by the repository state after 2026-10-03. Its inventory, CI, persistence, and test-count statements are not current guidance; consult [README](../README.md), [ROADMAP](../ROADMAP.md), [REPO-MAP](../REPO-MAP.md), and the current CI workflow before relying on them.
+
 **Scope:** Current working tree, including uncommitted changes visible during review. This is an evidence-based evaluation of the repository as an engineering research handbook with tested reference slices. Product-readiness ratings are reported separately and use a hypothetical sellable software product as the standard.
 
 ## Executive Summary

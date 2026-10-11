@@ -6,10 +6,9 @@ flowchart TD
     D -->|Yes| F{Does serialized payload meet the configured threshold?}
     F -->|No| G[Small-path API behavior: AdaptiveResponseFilter returns full result; filter_response yields one concat envelope]
     F -->|Yes| H{Can each emitted chunk fit the byte cap without splitting UTF-8 code points?}
-    H -->|No| I[Reject explicitly; revise payload shape or cap]
+    H -->|No| I[Reject explicitly; revise payload shape or cap. Preserve valid UTF-8 and reject unsplittable values.]
     H -->|Yes| J{Does receiver support merge mode, stable total_chunks, and one-message state?}
     J -->|No| E
     J -->|Yes| K[Use bounded CRC32 envelopes and complete reassembly]
     K --> L[Add transport retries, timeouts, and UI policy separately]
-    I -. edge case: chunking must preserve valid UTF-8 and reject unsplittable values .-> J
     J -. contract guard: conflicting duplicate frames, total metadata drift, changing total_chunks mid-message, and single-message reuse are rejected; identical duplicates are ignored .-> K

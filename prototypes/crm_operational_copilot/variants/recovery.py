@@ -30,9 +30,18 @@ class RecoveryInvalidationApprovalsStore(ApprovalsStore):
                     'expired','stale','revoked','policy_changed','scope',
                     'crash_no_write')),
                 execution_id TEXT NULL UNIQUE,
-                approval_version INTEGER NOT NULL DEFAULT 1
+                approval_version INTEGER NOT NULL DEFAULT 1,
+                reviewed_at INTEGER NULL
             )"""
         )
+        columns = {
+            row["name"]
+            for row in self.connection.execute("PRAGMA table_info(approvals)")
+        }
+        if "reviewed_at" not in columns:
+            self.connection.execute(
+                "ALTER TABLE approvals ADD COLUMN reviewed_at INTEGER NULL"
+            )
         self.connection.commit()
 
     def return_to_approved(self, approval_id: str) -> bool:

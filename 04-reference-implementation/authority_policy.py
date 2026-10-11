@@ -21,6 +21,10 @@ class PolicyRule:
     effect: Effect
     priority: int
 
+    def __post_init__(self) -> None:
+        if self.effect not in ("allow", "deny", "refer"):
+            raise ValueError(f"invalid policy effect: {self.effect!r}")
+
 
 @dataclass(frozen=True)
 class Decision:

@@ -10,7 +10,17 @@ This prototype directory contains two deliberately narrow local examples:
 
 None of these examples is a production CRM integration. The original CLI remains read-only. The separate `approval_workflow.py` example simulates a bounded account update and JSONL audit in memory. The SQLite baseline uses deterministic local identities and persists approvals, CRM state plus its ledger, and audit records in separate files; it does not provide a live CRM, authenticated enterprise identity provider, model, or distributed transaction.
 
-The proposed target design is documented in the [solution overview](../../architecture/00-solution-overview.md), [container view](../../architecture/01-context-and-containers.md), and [threat model](../../architecture/04-threat-model.md). The local workflow only demonstrates a narrow in-memory sequence from that design.
+The proposed target design is documented in the [solution overview](../../architecture/00-solution-overview.md), [container view](../../architecture/01-context-and-containers.md), and [threat model](../../architecture/04-threat-model.md). Only `approval_workflow.py` is the in-memory sequence; the separate SQLite validation baseline demonstrates local persisted-state and recovery behavior without claiming a live integration.
+
+## Evidence alignment rule
+
+This prototype follows the repository's evidence boundary strictly.
+
+- Implemented locally: the read-only CLI, the in-memory approval flow, and the SQLite validation harness are present in this folder and backed by tests.
+- Conceptual only: the broader enterprise CRM, real identity provider, production approval service, and deployment model remain architecture proposals, not live implementation.
+- Historical/archived: dated review artifacts and earlier design drafts are not current guidance when they conflict with the present prototype and tests.
+
+Any statement that reads like a live customer system, delegated production authorization service, or deployment claim is out of scope for this directory unless the relevant code, test, and evidence file are also present.
 
 ## Usage
 

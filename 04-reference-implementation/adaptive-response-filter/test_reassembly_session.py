@@ -1,3 +1,4 @@
+import hashlib
 import random
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
@@ -19,15 +20,17 @@ def _chunk(message_id, sequence, total, payload):
         is_final=sequence == total - 1,
         message_id=message_id,
         authentication_key=AUTH_KEY,
+        message_digest=hashlib.sha256(message_id.encode("utf-8")).hexdigest(),
         merge_mode="concat",
     )
 
 
 def _held_accounted_bytes(manager):
     return sum(
-        session.reassembler._received_bytes
+        len(message_id.encode("utf-8"))
+        + session.reassembler._received_bytes
         + EXPECTED_OVERHEAD_PER_CHUNK * len(session.reassembler.received)
-        for session in manager.sessions.values()
+        for message_id, session in manager.sessions.items()
     )
 
 
@@ -57,6 +60,10 @@ def test_missing_chunk_retries_then_falls_back_to_full_buffer():
     now[0] = 4.0
     assert session.poll_timeout() == b"complete response"
     assert full_buffer_requests == ["response-1"]
+    assert session.fallback_result == b"complete response"
+
+    with pytest.raises(ValueError, match="full-buffer fallback"):
+        session.add_chunk(_chunk("response-1", 1, 2, b"late chunk"))
     assert session.fallback_result == b"complete response"
 
 
@@ -424,10 +431,10 @@ def test_total_memory_cap_rejection_leaves_manager_state_unchanged():
     tombstones_before = manager.tombstones.copy()
 
     accounted_before = _held_accounted_bytes(manager)
-    with pytest.raises(ValueError, match="total active payload bytes"):
+    with pytest.raises(ValueError, match="total active memory bytes"):
         manager.add_chunk(_chunk("over", 0, 2, b"xy"))
 
-    assert _held_accounted_bytes(manager) == accounted_before == 100
+    assert _held_accounted_bytes(manager) == accounted_before == 104
     assert {
         message_id: session.reassembler.received.copy()
         for message_id, session in manager.sessions.items()
@@ -449,14 +456,14 @@ def test_total_memory_cap_retries_same_chunk_after_expiry_frees_bytes():
     assert manager.add_chunk(_chunk("held", 0, 2, b"1234")) is None
     candidate = _chunk("candidate", 0, 2, b"xy")
 
-    with pytest.raises(ValueError, match="total active payload bytes"):
+    with pytest.raises(ValueError, match="total active memory bytes"):
         manager.add_chunk(candidate)
-    assert _held_accounted_bytes(manager) == 100
+    assert _held_accounted_bytes(manager) == 104
 
     now[0] = 2.0
     assert manager.add_chunk(candidate) is None
     assert set(manager.sessions) == {"candidate"}
-    assert _held_accounted_bytes(manager) == 98
+    assert _held_accounted_bytes(manager) == 107
 
 
 def test_identical_duplicate_near_total_byte_cap_does_not_count_twice():
@@ -464,15 +471,15 @@ def test_identical_duplicate_near_total_byte_cap_does_not_count_twice():
         authentication_key=AUTH_KEY,
         request_retry=lambda _message_id, _missing: None,
         request_full_buffer=lambda _message_id: b"fallback",
-        max_total_bytes=98,
+        max_total_bytes=107,
         clock=lambda: 0.0,
     )
     chunk = _chunk("duplicate", 0, 2, b"xy")
 
     assert manager.add_chunk(chunk) is None
-    assert _held_accounted_bytes(manager) == 98
+    assert _held_accounted_bytes(manager) == 107
     assert manager.add_chunk(chunk) is None
-    assert _held_accounted_bytes(manager) == 98
+    assert _held_accounted_bytes(manager) == 107
 
 
 def test_completion_releases_bytes_for_another_message():
@@ -480,12 +487,12 @@ def test_completion_releases_bytes_for_another_message():
         authentication_key=AUTH_KEY,
         request_retry=lambda _message_id, _missing: None,
         request_full_buffer=lambda _message_id: b"fallback",
-        max_total_bytes=196,
+        max_total_bytes=204,
         clock=lambda: 0.0,
     )
 
     assert manager.add_chunk(_chunk("complete", 0, 2, b"ab")) is None
-    assert _held_accounted_bytes(manager) == 98
+    assert _held_accounted_bytes(manager) == 106
     assert manager.add_chunk(_chunk("complete", 1, 2, b"cd")) == b"abcd"
     assert manager.sessions == {}
     assert _held_accounted_bytes(manager) == 0
@@ -498,7 +505,7 @@ def test_bad_tag_does_not_change_total_payload_bytes():
         authentication_key=AUTH_KEY,
         request_retry=lambda _message_id, _missing: None,
         request_full_buffer=lambda _message_id: b"fallback",
-        max_total_bytes=100,
+        max_total_bytes=103,
         clock=lambda: 0.0,
     )
     assert manager.add_chunk(_chunk("valid", 0, 2, b"ab")) is None
@@ -510,7 +517,7 @@ def test_bad_tag_does_not_change_total_payload_bytes():
     with pytest.raises(ValueError, match="authentication failed"):
         manager.add_chunk(bad)
 
-    assert _held_accounted_bytes(manager) == accounted_before == 98
+    assert _held_accounted_bytes(manager) == accounted_before == 103
     assert set(manager.sessions) == {"valid"}
     assert manager._session_activity == before
 
@@ -526,11 +533,13 @@ def test_zero_payload_chunk_overhead_counts_toward_aggregate_cap():
     )
     for sequence in range(4):
         assert manager.add_chunk(_chunk("empty-heavy", sequence, 6, b"")) is None
-    assert _held_accounted_bytes(manager) == 4 * EXPECTED_OVERHEAD_PER_CHUNK
+    assert _held_accounted_bytes(manager) == (
+        len("empty-heavy") + 4 * EXPECTED_OVERHEAD_PER_CHUNK
+    )
     received_before = manager.sessions["empty-heavy"].reassembler.received.copy()
     accounted_before = _held_accounted_bytes(manager)
 
-    with pytest.raises(ValueError, match="total active payload bytes"):
+    with pytest.raises(ValueError, match="total active memory bytes"):
         manager.add_chunk(_chunk("empty-heavy", 4, 6, b""))
 
     assert _held_accounted_bytes(manager) == accounted_before
@@ -548,7 +557,9 @@ def test_few_large_chunks_complete_under_same_aggregate_cap():
     )
 
     assert manager.add_chunk(_chunk("large-valid", 0, 2, b"a" * 64)) is None
-    assert _held_accounted_bytes(manager) == EXPECTED_OVERHEAD_PER_CHUNK + 64
+    assert _held_accounted_bytes(manager) == (
+        len("large-valid") + EXPECTED_OVERHEAD_PER_CHUNK + 64
+    )
     assert manager.add_chunk(_chunk("large-valid", 1, 2, b"b" * 64)) == (
         b"a" * 64 + b"b" * 64
     )

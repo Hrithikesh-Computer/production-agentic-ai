@@ -1,6 +1,8 @@
+import hashlib
+
 import envelope
 import pytest
-from envelope import WireEnvelope, checksum
+from envelope import MAX_MESSAGE_ID_BYTES, WireEnvelope, checksum
 
 AUTH_KEY = b"unit-test-authentication-key"
 MESSAGE_ID = "test-message"
@@ -15,6 +17,7 @@ def test_valid_envelope_round_trips_through_mapping():
         is_final=True,
         message_id=MESSAGE_ID,
         authentication_key=AUTH_KEY,
+        message_digest=hashlib.sha256(MESSAGE_ID.encode()).hexdigest(),
     )
 
     assert envelope.checksum == checksum(payload)
@@ -30,6 +33,7 @@ def test_envelope_mapping_has_wire_contract_fields():
         is_final=True,
         message_id=MESSAGE_ID,
         authentication_key=AUTH_KEY,
+        message_digest=hashlib.sha256(MESSAGE_ID.encode()).hexdigest(),
     )
 
     assert envelope.to_dict() == {
@@ -41,6 +45,7 @@ def test_envelope_mapping_has_wire_contract_fields():
         "message_id": MESSAGE_ID,
         "auth_tag": envelope.auth_tag,
         "merge_mode": "concat",
+        "message_digest": hashlib.sha256(MESSAGE_ID.encode()).hexdigest(),
     }
 
 
@@ -63,6 +68,7 @@ def test_envelope_rejects_invalid_fields(changes, error, message):
         is_final=True,
         message_id=MESSAGE_ID,
         authentication_key=AUTH_KEY,
+        message_digest=hashlib.sha256(MESSAGE_ID.encode()).hexdigest(),
     ).to_dict()
     values.update(changes)
 
@@ -83,6 +89,12 @@ def test_envelope_rejects_invalid_fields(changes, error, message):
         ("checksum", "zzzzzzzz", ValueError, "only hexadecimal characters"),
         ("merge_mode", None, TypeError, "merge_mode must be a string"),
         ("message_id", "", ValueError, "message_id must be a non-empty string"),
+        (
+            "message_id",
+            "x" * (MAX_MESSAGE_ID_BYTES + 1),
+            ValueError,
+            "message_id exceeds protocol maximum",
+        ),
         ("auth_tag", "short", ValueError, "64-character HMAC-SHA256"),
         ("auth_tag", "g" * 64, ValueError, "only hexadecimal characters"),
     ],
@@ -95,6 +107,7 @@ def test_envelope_rejects_invalid_wire_field_values(field, value, error, message
         is_final=True,
         message_id=MESSAGE_ID,
         authentication_key=AUTH_KEY,
+        message_digest=hashlib.sha256(MESSAGE_ID.encode()).hexdigest(),
     ).to_dict()
     values[field] = value
 
@@ -123,6 +136,7 @@ def test_envelope_mapping_rejects_invalid_field_types(field, value, error, messa
         is_final=True,
         message_id=MESSAGE_ID,
         authentication_key=AUTH_KEY,
+        message_digest=hashlib.sha256(MESSAGE_ID.encode()).hexdigest(),
     ).to_dict()
     mapping[field] = value
 
@@ -138,6 +152,7 @@ def test_envelope_mapping_rejects_missing_required_field():
         is_final=True,
         message_id=MESSAGE_ID,
         authentication_key=AUTH_KEY,
+        message_digest=hashlib.sha256(MESSAGE_ID.encode()).hexdigest(),
     ).to_dict()
     del mapping["message_id"]
 
@@ -154,6 +169,7 @@ def test_envelope_rejects_invalid_utf8_bytes():
             is_final=True,
             message_id=MESSAGE_ID,
             authentication_key=AUTH_KEY,
+            message_digest=hashlib.sha256(MESSAGE_ID.encode()).hexdigest(),
         )
 
 
@@ -166,6 +182,7 @@ def test_envelope_builder_rejects_authentication_key_shorter_than_16_bytes():
             is_final=True,
             message_id=MESSAGE_ID,
             authentication_key=b"x" * 15,
+            message_digest=hashlib.sha256(MESSAGE_ID.encode()).hexdigest(),
         )
 
 
@@ -180,6 +197,7 @@ def test_envelope_rejects_protocol_size_limits(monkeypatch):
             payload="",
             message_id=MESSAGE_ID,
             auth_tag="0" * 64,
+            message_digest=hashlib.sha256(MESSAGE_ID.encode()).hexdigest(),
         )
 
     monkeypatch.setattr(envelope, "MAX_ENVELOPE_PAYLOAD_BYTES", 2)
@@ -192,4 +210,5 @@ def test_envelope_rejects_protocol_size_limits(monkeypatch):
             payload="abc",
             message_id=MESSAGE_ID,
             auth_tag="0" * 64,
+            message_digest=hashlib.sha256(MESSAGE_ID.encode()).hexdigest(),
         )

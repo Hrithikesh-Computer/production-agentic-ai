@@ -20,7 +20,7 @@ Response delivery is a production failure case used to examine reliability trade
 
 ## Current Implementation Boundary
 
-The implemented slices include a local authenticated-envelope/reassembly protocol example, a bounded authority evaluator with allow/deny/refer outcomes, an incremental NDJSON decoder, a browser harness for an NDJSON-over-HTTP candidate, and a deterministic CRM approval workflow simulation. The CRM workflow uses in-memory mock records and caller-supplied identities; it is not a live CRM, identity provider, model integration, durable approval service, or production runtime.
+The implemented slices include a local authenticated-envelope/reassembly protocol with CRC32, HMAC-SHA256, and a whole-response digest; a bounded authority evaluator; an incremental NDJSON decoder; a browser harness for an NDJSON-over-HTTP candidate; an in-memory CRM workflow simulation; and separate SQLite-backed approval/audit validation variants. The SQLite prototype now keeps review decisions non-executable until the approval audit event is durable and provides explicit recovery for interrupted review and CRM execution paths. These are deterministic local validations only: none of the CRM examples is a live CRM, identity provider, model integration, production approval service, or production runtime. Downstream audit-writer integrity, operational recovery ownership, shared-database-specific behavior, and external integration remain separate boundaries.
 
 The active runtime and dependency boundary is documented once in [ROADMAP.md](./ROADMAP.md#systemic-dependencies--future-research-context) and [04-reference-implementation/README.md](./04-reference-implementation/README.md).
 
@@ -42,7 +42,7 @@ Each investigation should connect the engineering question to its architecture, 
 | Response delivery | L2 | [Engineering question and implementation boundary](./03-production-lessons/01-adaptive-response-delivery.md) → [ADR-001](./architecture/02-decisions/ADR-001-response-delivery.md) → [reference implementation and tests](./04-reference-implementation/adaptive-response-filter/) → [browser evidence and limitations](./benchmarks/response-delivery/browser-matrix-evidence.md). Measurements are synthetic and runtime-dependent; representative CRM payloads, a second browser engine, and client decompression costs remain open. |
 | Context lifecycle | L0 | [Lifecycle question and hypothesis](./02-context-and-memory/01-beyond-token-windows.md). No context-lifecycle implementation or benchmark is currently present. |
 | Authority policy evaluator | L2 | [Authority and intent question](./01-agent-architecture/01-agent-authority-and-intent.md) → [bounded evaluator](./04-reference-implementation/authority_policy.py) → [tests](./tests/test_authority_policy.py). This local evaluator does not establish authenticated identity or semantic alignment. |
-| CRM approval workflow | L2 | [Proposed architecture](./architecture/00-solution-overview.md) → [approval decision](./architecture/02-decisions/ADR-002-approval-signing.md) → [in-memory simulation and tests](./prototypes/crm_operational_copilot/approval_workflow.py) → [evidence and limitations](./prototypes/crm_operational_copilot/EVIDENCE.md). The simulation is serial and uses caller-supplied identities and in-memory state; concurrency, sink-failure recovery, and external integration remain unvalidated. |
+| CRM approval workflow | L2 | [Proposed architecture](./architecture/00-solution-overview.md) → [approval decision](./architecture/02-decisions/ADR-002-approval-signing.md) → [in-memory simulation](./prototypes/crm_operational_copilot/approval_workflow.py) and separate [SQLite validation variants](./prototypes/crm_operational_copilot/variants/) → [evidence and limitations](./EVIDENCE.md). The local SQLite paths keep failed review decisions non-executable until audit recovery or transactional commit; downstream writer integrity, shared-database corruption recovery, and external integration remain unresolved or unverified. |
 
 No current investigation slice demonstrates L3 or higher. The highest-value next evidence is a bounded non-production validation using real identity, conditional CRM writes, durable audit, rollback, telemetry, and named operational ownership; it is a proposed next step, not an existing capability.
 
@@ -52,6 +52,7 @@ No current investigation slice demonstrates L3 or higher. The highest-value next
 |---|---|---|
 | Executable implementation | Local Python reference slice for adaptive response delivery | Tests, demo, and code under [04-reference-implementation/adaptive-response-filter](04-reference-implementation/adaptive-response-filter) |
 | CRM approval workflow simulation | In-memory proposal, human-review, authority recheck, mock update, and JSONL audit sequence | [approval_workflow.py](prototypes/crm_operational_copilot/approval_workflow.py) and focused tests; no live CRM, authenticated identity, or durable state |
+| CRM approval/audit validation experiment | Separate current and fixed SQLite variants with local transaction, review-audit recovery, execution-audit recovery, and fault-injection tests | [Variant implementations](prototypes/crm_operational_copilot/variants/) and [repair evidence](EVIDENCE.md); no live CRM or identity provider, and no production audit guarantee |
 | Research articles | Documented engineering analysis and trade-off discussions | Markdown articles and diagrams in this repository |
 | Research hypotheses | Context lifecycle and authority/intent analyses | No context-lifecycle benchmark; a small time-bounded authority policy evaluator exists but does not implement semantic alignment |
 | External / absent | EMR, Spark, PostgreSQL/RDS pipelines, production deployments, and cloud service stacks referenced in archived examples | Not present in the checked-in repository; not measured here |
@@ -61,9 +62,9 @@ No current investigation slice demonstrates L3 or higher. The highest-value next
 1. **Adaptive Response Delivery** — [Investigation](./03-production-lessons/01-adaptive-response-delivery.md), [reference implementation and tests](./04-reference-implementation/adaptive-response-filter/), and [browser evidence](./benchmarks/response-delivery/browser-matrix-evidence.md). The strongest empirical slice here, with synthetic, runtime-dependent results and clear open validation questions.
 2. **Context Lifecycle** — [Research note](./02-context-and-memory/01-beyond-token-windows.md) on what information should survive across interactions. Currently L0: no local implementation or benchmark.
 3. **Agent Authority** — [Authority and intent research](./01-agent-architecture/01-agent-authority-and-intent.md), alongside a [bounded policy evaluator](./04-reference-implementation/authority_policy.py) and [tests](./tests/test_authority_policy.py). The evaluator is local and deterministic; it does not establish authenticated identity or semantic alignment.
-4. **CRM Operational Copilot** — [Proposed architecture](./architecture/README.md) and [approval workflow simulation](./prototypes/crm_operational_copilot/approval_workflow.py), with its [evidence boundaries](./prototypes/crm_operational_copilot/EVIDENCE.md). Architecture remains proposed; the workflow is an in-memory local simulation, not a live CRM integration.
+4. **CRM Operational Copilot** — [Proposed architecture](./architecture/README.md), [in-memory approval workflow simulation](./prototypes/crm_operational_copilot/approval_workflow.py), and separate [SQLite approval/audit validation variants](./prototypes/crm_operational_copilot/variants/). The fixed variant has bounded local rollback/retry tests; the [evidence record](./EVIDENCE.md) documents remaining failure modes. Neither example is a live CRM integration.
 
-Supporting artifacts: [NDJSON decoder](./04-reference-implementation/ndjson_stream.py), [referral tests](./tests/test_authority_referral.py), and [CRM workflow tests](./prototypes/crm_operational_copilot/test_approval_workflow.py).
+Supporting artifacts: [NDJSON decoder](./04-reference-implementation/ndjson_stream.py), [referral tests](./tests/test_authority_referral.py), [CRM workflow tests](./prototypes/crm_operational_copilot/test_approval_workflow.py), and [approval/audit contract tests](./tests/test_crm_decision_contracts.py).
 
 The out-of-scope [EMR-to-PostgreSQL architecture analysis](./archive/design-sketches-2026/02-emr-to-postgresql-ingestion-architecture.md) is retained in the design archive.
 
@@ -77,7 +78,7 @@ This is a proposed design plus local simulation, not a deployed CRM product. Use
 2. Open the [C4 container diagram](./architecture/diagrams/c4-containers.mmd) and follow the [context and containers notes](./architecture/01-context-and-containers.md). The identity provider, CRM, model provider, approval queue, authority gateway, and audit store are proposed components.
 3. Read the [ADR index](./architecture/02-decisions/README.md) and the [authority options analysis](./architecture/03-options-analysis.md) to see alternatives, trade-offs, and provisional choices.
 4. Scan the [STRIDE threat model](./architecture/04-threat-model.md), especially the flow IDs for model prompt injection, approval replay, and the recheck-before-write boundary.
-5. Run `python prototypes/crm_operational_copilot/approval_workflow.py` and `python -m pytest -q prototypes/crm_operational_copilot/test_approval_workflow.py tests/test_authority_referral.py`. The simulation uses in-memory mock records; 16 workflow test cases cover approval, binding, current requester/reviewer authority, stale records, expiry, and replay, while 7 referral tests cover evaluator, aggregate, session, and ticket behavior.
+5. Run `python prototypes/crm_operational_copilot/approval_workflow.py` and `python -m pytest -q prototypes/crm_operational_copilot/test_approval_workflow.py tests/test_authority_referral.py`. The simulation uses in-memory mock records; the tests cover approval, binding, current requester/reviewer authority, stale records, expiry, and replay. For the separate SQLite validation, run `python -m pytest -q prototypes/crm_operational_copilot` and review its validation contract and evidence; neither path contacts a vendor system.
 
 For deeper discovery, see the [NFR and sizing worksheet](./architecture/05-nfr-and-sizing.md), [AWS deployment candidate](./architecture/06-deployment-views.md), [cost model](./architecture/07-cost-model.md), and [customer questionnaire](./architecture/09-discovery-questionnaire.md). Their assumptions and numbers are provisional, not requirements or quotations.
 
@@ -93,7 +94,7 @@ For deeper discovery, see the [NFR and sizing worksheet](./architecture/05-nfr-a
 - [diagrams/](./diagrams/) — Mermaid source diagrams
 - [prompts/](./prompts/) — reusable research and review prompts
 - [templates/](./templates/) — article and engineering templates
-- [tests/](./tests/) — behavior tests for the bounded authority evaluator
+- [tests/](./tests/) — protocol, authority, and CRM contract tests
 - [archive/](./archive/) — historical design sketches, internal evaluations, and review artifacts
 
 ## Quick Start
@@ -230,6 +231,28 @@ Systemic context or future-facing ideas that may appear in the article narrative
 These broader possibilities are valid research ideas and architecture vocabulary, but they are not required to run the repository's local tests, demo, or lint checks. The current execution environment is intentionally small.
 
 The current local reference slice is intentionally narrow. It can be exercised by the checked-in tests and demo without requiring external services. Its retry and fallback callbacks model local session behavior; they are not connected to a real transport.
+
+### Article-to-code alignment rule
+
+This repository is intentionally evidence-led. Every article, architecture note, and claim must map to one of three states:
+
+- implemented locally in Python or a checked-in prototype
+- explicitly described as a conceptual design or future-state hypothesis
+- archived as historical material and therefore not current guidance
+
+The alignment rule is simple:
+
+1. If a claim is implemented, point the article to the exact file or test in the repo.
+2. If a claim is only conceptual, mark it as design intent or future work rather than present capability.
+3. If a claim is not backed by current local code, do not describe it as an active runtime or production feature.
+
+Examples from this repo:
+
+- [03-production-lessons/01-adaptive-response-delivery.md](./03-production-lessons/01-adaptive-response-delivery.md) is matched by the local Python slice under [04-reference-implementation/adaptive-response-filter](./04-reference-implementation/adaptive-response-filter) and its tests.
+- [01-agent-architecture/01-agent-authority-and-intent.md](./01-agent-architecture/01-agent-authority-and-intent.md) is matched by the bounded evaluator in [04-reference-implementation/authority_policy.py](./04-reference-implementation/authority_policy.py), not by a claim of a production identity or policy authority service.
+- The CRM prototype under [prototypes/crm_operational_copilot](./prototypes/crm_operational_copilot) is documented as a local mock and is not treated as a live CRM system or deployment path.
+
+Following this rule keeps the articles, architecture notes, and Python implementation in the same evidence boundary instead of letting the narrative drift ahead of the checked-in code.
 
 ## License
 

@@ -1,3 +1,4 @@
+import hashlib
 import inspect
 import sys
 from pathlib import Path
@@ -27,6 +28,7 @@ def build_envelope(
     sequence: int = 0,
     total_chunks: int = 2,
     payload: bytes = b"payload",
+    message_digest: str | None = None,
 ) -> WireEnvelope:
     return WireEnvelope.from_bytes(
         sequence=sequence,
@@ -35,6 +37,9 @@ def build_envelope(
         is_final=sequence == total_chunks - 1,
         message_id=message_id,
         authentication_key=AUTH_KEY,
+        message_digest=message_digest or hashlib.sha256(
+            message_id.encode("utf-8")
+        ).hexdigest(),
         merge_mode="concat",
     )
 
@@ -107,26 +112,26 @@ def test_abandoned_sessions_are_evicted_after_ttl():
 
 
 # R4: bind chunks to one logical message so ID reuse cannot mix payload fragments.
-@pytest.mark.xfail(
-    strict=True,
-    reason="needs wire-format change (digest); contract documented instead",
-)
 def test_reused_message_id_cannot_mix_payloads():
     manager = make_manager()
     first = build_envelope(
-        message_id="reused", sequence=0, total_chunks=2, payload=b"old-"
+        message_id="reused",
+        sequence=0,
+        total_chunks=2,
+        payload=b"old-",
+        message_digest=hashlib.sha256(b"old-response").hexdigest(),
     )
     second = build_envelope(
-        message_id="reused", sequence=1, total_chunks=2, payload=b"new"
+        message_id="reused",
+        sequence=1,
+        total_chunks=2,
+        payload=b"new",
+        message_digest=hashlib.sha256(b"new-response").hexdigest(),
     )
 
     assert manager.add_chunk(first) is None
-    try:
-        result = manager.add_chunk(second)
-    except ValueError:
-        return
-
-    assert result != b"old-new", "distinct logical messages were silently combined"
+    with pytest.raises(ValueError, match="message_digest"):
+        manager.add_chunk(second)
 
 
 # R5: interpret threshold equality as chunked, matching should_chunk's >= predicate.

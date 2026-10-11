@@ -230,11 +230,19 @@ def test_contract_scenario_ids_persist_expected_state(
             "approval-1", reviewer_id=REVIEWER, approve=False,
             reviewer_scope=REVIEWER_SCOPE,
         )
-        assert result.status == "rejected"
+        assert result.status == "unresolved"
+        assert result.reason == "approval_audit_pending"
         assert result.audit_error is not None
-        assert approvals.get("approval-1").state == "REJECTED"
+        assert approvals.get("approval-1").state == "AUDIT_PENDING"
         assert crm.get_record("CUST-1").record_version == 1
         assert audit.count() == 0
+        recovered = service.recover()
+        approval = approvals.get("approval-1")
+        events = audit.events_for_approval("approval-1")
+        assert recovered[0].status == "rejected"
+        assert approval is not None and approval.state == "REJECTED"
+        assert len(events) == 1 and events[0].event_type == "approval_rejected"
+        assert events[0].reason == "reviewer_denied"
     elif scenario_id == "S16":
         result = _execute(service)
         approval = approvals.get("approval-1")

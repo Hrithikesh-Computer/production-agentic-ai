@@ -12,6 +12,7 @@ from typing import Callable, Mapping
 from envelope import (
     MAX_ENVELOPE_CHUNKS,
     MAX_ENVELOPE_PAYLOAD_BYTES,
+    MAX_MESSAGE_ID_BYTES,
     MIN_AUTHENTICATION_KEY_BYTES,
     WireEnvelope,
     checksum,
@@ -32,6 +33,7 @@ class Reassembler:
     received: dict[int, bytes] = field(default_factory=dict, init=False)
     merge_mode: str | None = field(default=None, init=False)
     message_id: str | None = field(default=None, init=False)
+    message_digest: str | None = field(default=None, init=False)
     max_chunks: int = DEFAULT_MAX_CHUNKS
     max_payload_bytes: int = DEFAULT_MAX_PAYLOAD_BYTES
     _received_bytes: int = field(default=0, init=False, repr=False)
@@ -83,6 +85,11 @@ class Reassembler:
             raise ValueError("merge_mode cannot change during reassembly")
         if self.message_id is not None and envelope.message_id != self.message_id:
             raise ValueError("message_id cannot change during reassembly")
+        if (
+            self.message_digest is not None
+            and envelope.message_digest != self.message_digest
+        ):
+            raise ValueError("message_digest cannot change during reassembly")
 
         if checksum(payload) != envelope.checksum.lower():
             emit_receiver_outcome(ReceiverOutcome.ENVELOPE_INTEGRITY_REJECTED)
@@ -120,6 +127,7 @@ class Reassembler:
             self.total_chunks = envelope.total_chunks
             self.merge_mode = envelope.merge_mode
             self.message_id = envelope.message_id
+            self.message_digest = envelope.message_digest
         self.received[sequence] = payload
         self._received_bytes += added_bytes
 
@@ -189,6 +197,10 @@ class ReassemblySession:
     def __post_init__(self) -> None:
         if not self.message_id:
             raise ValueError("message_id must be non-empty")
+        if len(self.message_id.encode("utf-8")) > MAX_MESSAGE_ID_BYTES:
+            raise ValueError(
+                f"message_id exceeds protocol maximum of {MAX_MESSAGE_ID_BYTES} bytes"
+            )
         self.reassembler = Reassembler(authentication_key=self.authentication_key)
         self._deadline = self.clock() + self.policy.timeout_seconds
 
@@ -198,6 +210,8 @@ class ReassemblySession:
             envelope = WireEnvelope.from_mapping(envelope)
         if envelope.message_id != self.message_id:
             raise ValueError("chunk message_id does not match session")
+        if self.fallback_result is not None:
+            raise ValueError("session is complete after full-buffer fallback")
         result = self.reassembler.add_chunk(envelope)
         if result is None:
             self._deadline = self.clock() + self.policy.timeout_seconds
@@ -329,9 +343,10 @@ class ReassemblySessionManager:
     @property
     def active_memory_bytes(self) -> int:
         return sum(
-            session.reassembler._received_bytes
+            len(message_id.encode("utf-8"))
+            + session.reassembler._received_bytes
             + OVERHEAD_PER_CHUNK * len(session.reassembler.received)
-            for session in self.sessions.values()
+            for message_id, session in self.sessions.items()
         )
 
     def add_chunk(self, chunk: WireEnvelope | Mapping[str, object]) -> bytes | None:
@@ -368,19 +383,24 @@ class ReassemblySessionManager:
 
         _, _, added_bytes, duplicate = session.reassembler._prepare_chunk(envelope)
         active_memory_bytes = sum(
-            active.reassembler._received_bytes
+            len(message_id.encode("utf-8"))
+            + active.reassembler._received_bytes
             + OVERHEAD_PER_CHUNK * len(active.reassembler.received)
             for message_id, active in self.sessions.items()
             if message_id not in expired_sessions
         )
         chunk_overhead_bytes = 0 if duplicate else OVERHEAD_PER_CHUNK
+        session_id_bytes = len(envelope.message_id.encode("utf-8")) if created else 0
         if (
-            active_memory_bytes + added_bytes + chunk_overhead_bytes
+            active_memory_bytes
+            + added_bytes
+            + chunk_overhead_bytes
+            + session_id_bytes
             > self.max_total_bytes
         ):
             emit_receiver_outcome(ReceiverOutcome.ACTIVE_PAYLOAD_CAP_REJECTED)
             raise ValueError(
-                "maximum total active payload bytes exceeded "
+                "maximum total active memory bytes exceeded "
                 f"({self.max_total_bytes})"
             )
 

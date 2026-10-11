@@ -1,6 +1,6 @@
 # Repository Map
 
-Inventory snapshot: 2026-10-03. Active material is listed first; archive contents are historical and are not current guidance.
+Inventory snapshot: 2026-10-09. Active material is listed first; archive contents are historical and are not current guidance. Dated evaluation and review artifacts must not be treated as current status without checking `README.md`, `ROADMAP.md`, `EVIDENCE.md`, and current CI results.
 
 Tags describe the repository evidence currently present, not production readiness:
 
@@ -8,12 +8,15 @@ Tags describe the repository evidence currently present, not production readines
 - `[tested local reference]`: bounded executable behavior with local tests; not a production service.
 - `[partial mock prototype]`: limited local mock behavior; no claim of live integration or production readiness.
 
+Alignment rule for active content: every article or design claim should either link to a matching implementation, explicitly remain conceptual, or be archived as historical material. Documentation that outpaces the checked-in code is treated as drift, not as current evidence.
+
 ## Active Research and Implementation
 
 1. [Adaptive response delivery](03-production-lessons/01-adaptive-response-delivery.md) — research note, local envelope timings, standalone three-mode baseline, and separate Electron four-mode follow-up; no production latency evidence.
 2. [Context lifecycle](02-context-and-memory/01-beyond-token-windows.md) — research hypothesis; no local implementation or benchmark.
 3. [Authority and intent](01-agent-architecture/01-agent-authority-and-intent.md) — research hypothesis; a bounded time-window/priority evaluator exists, but no semantic-alignment mechanism.
 4. [Reference implementation](04-reference-implementation/) — adaptive response filter, bounded authority policy evaluator, and incremental NDJSON decoder, with tests and evidence boundaries.
+5. [CRM operational copilot prototype](prototypes/crm_operational_copilot/) — SQLite-backed local approval, CRM, and audit stores; deterministic identity/policy checks; review and execution recovery; variants and local evidence. No live vendor integration.
 
 The out-of-scope [EMR-to-PostgreSQL architecture analysis](archive/design-sketches-2026/02-emr-to-postgresql-ingestion-architecture.md) is archived, not active research.
 
@@ -73,9 +76,12 @@ The EMR article is archived under `archive/design-sketches-2026/` because it doe
 
 ## `prototypes/crm_operational_copilot/`
 
-- `README.md`, `crm_copilot.py`, `test_crm_copilot.py`, `approval_workflow.py`, `test_approval_workflow.py`, `EVIDENCE.md` [partial mock prototype; the approval workflow is a separate in-memory simulation]
+- `README.md`, `crm_copilot.py`, `test_crm_copilot.py`, `approval_workflow.py`, `test_approval_workflow.py` [in-memory mock workflow]
+- `approvals_store.py`, `crm_store.py`, `audit_store.py`, `execution_service.py`, `identity_provider.py`, `policy_snapshot.py`, validation harness and tests [SQLite-backed local workflow validation; no live CRM or identity-provider integration]
+- `variants/` [local alternative implementations and bounded experiments]
+- `EVIDENCE.md`, `VALIDATION-CONTRACT.md` [scope, invariants, local findings, and limits]
 
-The existing prototype is a mock-data, read-only implementation. It is backing code for Action 2, so do not scaffold a parallel implementation.
+The prototype has separate in-memory and SQLite-backed implementations; do not conflate their persistence, concurrency, or recovery claims.
 
 ## `tests/`
 

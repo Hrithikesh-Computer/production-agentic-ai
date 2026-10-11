@@ -8,6 +8,16 @@
 **Status:** Research note / hypothesis; no verified enforcement mechanism is included.
 **Evidence boundary:** This is architecture analysis, not a repository-implemented security runtime. The semantic-alignment layer has no defined algorithm, metric, or enforcement point here; claims about deployed control systems remain hypotheses without direct runtime evidence.
 
+## Evidence alignment rule
+
+This article is explicitly scoped to the repository's actual evidence model.
+
+- Implemented locally: the bounded authority evaluator in [../04-reference-implementation/authority_policy.py](../04-reference-implementation/authority_policy.py) and its local tests in [../tests/test_authority_policy.py](../tests/test_authority_policy.py)
+- Conceptual or future-state: the larger production security model for semantic alignment, delegated authority, and enterprise enforcement is treated as design intent, not repository capability
+- Archived or historical: earlier design drafts or proposal-era claims that do not match the current checked-in implementation are not current guidance
+
+The architecture here is therefore a decision framework for a class of systems, not a claim that a deployed authority runtime exists in this repository.
+
 ## Decision Summary
 
 This research note hypothesizes that identity and permission checks may be insufficient for some stateful, delegated agent workflows. It proposes separating identity, scope, provenance, runtime validity, and intent review as design concerns. The repository does not establish that this model improves production security or provide a mechanism for deciding semantic alignment.

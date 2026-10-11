@@ -26,6 +26,14 @@ The proposed application separates user interaction, orchestration, policy/appro
 - The local audit store is not tamper-resistant and does not provide production retention controls or a customer-operated audit service.
 - No cloud provider is selected in these views. Deployment mapping belongs after customer environment and procurement discovery.
 
+## Evidence alignment rule
+
+This architecture describes what a production deployment could look like; it does not imply that those services or credentials exist in the checked-in repo. This is design intent, not repository capability.
+
+- Implemented locally: the deterministic SQLite validation baseline, the bounded authority evaluator, and the repository's mock CRM examples
+- Proposed design: the enterprise identity provider, production approval gateway, CRM and audit service topology, and deployment intent represented in these views
+- Not current guidance: older review artifacts and historical design sketches that were superseded by the repo's current evidence boundary
+
 See [ADR-002](02-decisions/ADR-002-approval-signing.md) for approval-evidence handling and [ADR-003](02-decisions/ADR-003-context-lifecycle-deferral.md) for context persistence.
 
 Related design artifacts: [STRIDE threat model](04-threat-model.md), [NFR and sizing](05-nfr-and-sizing.md), and [AWS deployment candidate](06-deployment-views.md).

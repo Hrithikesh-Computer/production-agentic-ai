@@ -1,16 +1,25 @@
 from __future__ import annotations
 
 import csv
+import importlib.util
 import json
-import sys
 from pathlib import Path
 
 import pytest
+import validation_harness
 from validation_harness import EXPECTED_SCENARIO_IDS, read_contract_scenarios
 
-SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
-sys.path.insert(0, str(SCRIPTS))
-from check_crm_validation_evidence import validate_scenario_ids  # noqa: E402
+_CHECKER_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "scripts"
+    / "check_crm_validation_evidence.py"
+)
+_SPEC = importlib.util.spec_from_file_location("crm_evidence_checker", _CHECKER_PATH)
+assert _SPEC is not None and _SPEC.loader is not None
+_CHECKER = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(_CHECKER)
+validate_environment = _CHECKER.validate_environment
+validate_scenario_ids = _CHECKER.validate_scenario_ids
 
 
 def test_contract_parser_returns_exact_scenario_ids_and_expected_states() -> None:
@@ -35,6 +44,35 @@ def test_contract_parser_rejects_missing_duplicate_or_unrecognized_ids(
 
     with pytest.raises(ValueError, match="exactly S01-S17"):
         read_contract_scenarios(path)
+
+
+def test_source_snapshot_digest_changes_when_a_validation_input_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "input.py"
+    source.write_text("first", encoding="utf-8")
+    monkeypatch.setattr(validation_harness, "ROOT", tmp_path)
+    monkeypatch.setattr(validation_harness, "VALIDATION_INPUTS", ("input.py",))
+    first_digest = validation_harness.source_snapshot_sha256()
+
+    source.write_text("second", encoding="utf-8")
+
+    assert validation_harness.source_snapshot_sha256() != first_digest
+
+
+def test_environment_checker_rejects_stale_source_snapshot(tmp_path: Path) -> None:
+    environment = {
+        "commit": "0" * 40,
+        "python_version": "3.14.6",
+        "source_snapshot_sha256": "0" * 64,
+        "started_at_utc": "2026-10-09T00:00:00Z",
+        "completed_at_utc": "2026-10-09T00:00:01Z",
+    }
+    path = tmp_path / "environment.json"
+    path.write_text(json.dumps(environment), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="source snapshot does not match"):
+        validate_environment(path)
 
 
 @pytest.mark.parametrize(

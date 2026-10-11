@@ -28,7 +28,7 @@
 
 ## Reference Implementation
 
-*Link to the corresponding module in the local reference implementation under `04-reference-implementation/`.*
+*Link to the corresponding module in `04-reference-implementation/` when this article makes an implementation-backed architectural claim. Otherwise state `Not applicable: [reason]` and identify the evidence boundary.*
 
 ## Experiment
 

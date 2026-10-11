@@ -143,6 +143,8 @@ class MockCRMConnector:
             or proposal.expected_record_version != expected_version
         ):
             raise PermissionError("approval does not match the requested CRM update")
+        if at >= proposal.expires_at:
+            raise PermissionError("approval has expired")
 
         decision = self.authority.decide(actor, WRITE_SCOPE, at)
         if decision.effect == "deny":

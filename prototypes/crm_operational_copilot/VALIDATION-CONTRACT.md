@@ -12,6 +12,18 @@ The test objective is to make the core write path observable, replay-safe, and f
 
 ## Boundary
 
+### Evidence alignment rule for this contract
+
+This contract is a local, deterministic proof for the checked-in SQLite prototype only. It is not a production certification, not a deployment design, and not a claim that the wider CRM platform exists in this repository.
+
+The valid mapping is:
+
+- implemented locally: the SQLite approvals/CRM/audit stores, `identity_provider.py`, the execution service, and the deterministic harness in this prototype folder
+- conceptual only: the larger enterprise CRM/IdP integration, operational ownership, live model actions, and deployment architecture described in the surrounding architecture notes
+- not current guidance: archive-era review artifacts or earlier stale claims that contradict the present local evidence boundary
+
+This contract sharpens the local proof pattern without broadening the repository's evidence model.
+
 ### Implemented locally
 
 - Python standard library only, specifically `sqlite3`
@@ -46,13 +58,11 @@ The repository defines the evidence levels as follows in [README.md](../../READM
 >
 > "L5 — Production validated | Evidence from an actual production or customer setting, with scope and conditions recorded"
 
-The current CRM workflow is explicitly described as:
+The repository classifies the CRM approval workflow at L2 for bounded local
+tests, not as production evidence ([README evidence table](../../README.md#research-trail-and-evidence-levels)). It contains two distinct local implementations: the [in-memory simulation](approval_workflow.py), whose identity and state are caller-supplied/in-memory, and the [SQLite validation baseline](execution_service.py), whose separate approval, CRM-ledger, and audit stores exercise persisted transitions and explicit recovery. The SQLite behavior does not establish a live CRM, enterprise identity integration, cross-host transactions, or production audit guarantees. See the current [prototype evidence record](EVIDENCE.md) for the scoped claims and limits.
 
-> `"| CRM approval workflow | L2 | [Proposed architecture](./architecture/00-solution-overview.md) → [approval decision](./architecture/02-decisions/ADR-002-approval-signing.md) → [in-memory simulation and tests](./prototypes/crm_operational_copilot/approval_workflow.py) → [evidence and limitations](./prototypes/crm_operational_copilot/EVIDENCE.md). The simulation is serial and uses caller-supplied identities and in-memory state; concurrency, sink-failure recovery, and external integration remain unvalidated. |"`
-
-Working repository links: [proposed architecture](../../architecture/00-solution-overview.md), [approval decision](../../architecture/02-decisions/ADR-002-approval-signing.md), [in-memory simulation and tests](approval_workflow.py), and [evidence and limitations](EVIDENCE.md).
-
-This contract specifies a stronger local deterministic proof pattern; it is not production evidence and does not change the repository's stated evidence level.
+This contract specifies the deterministic SQLite validation baseline; it is not
+production evidence and does not change the repository's stated evidence level.
 
 ## Invariants under test
 
@@ -87,7 +97,10 @@ State semantics:
 - `APPROVED`: reviewed and eligible for execution subject to current checks.
 - `EXECUTING`: claimed; outcome unresolved until the CRM ledger is checked.
 - `COMPLETED`: CRM mutation and audit are both committed.
-- `AUDIT_PENDING`: CRM mutation committed; audit unresolved; not full success.
+- `AUDIT_PENDING`: a review or CRM execution audit is unresolved; never executable.
+  A null `execution_id` with `reviewed_at` set identifies a review awaiting its
+  audit event. A non-null `execution_id` identifies an execution whose CRM write
+  committed but whose audit or final state is unresolved.
 - `REJECTED`: reviewer rejected; terminal for this approval.
 - `INVALIDATED`: execution checks failed; terminal for this approval, with one of the listed reasons. A fresh approval is required for another attempt.
 
@@ -110,7 +123,8 @@ The claim succeeds only when `rowcount == 1`. SQLite provides the single-winner 
 - `EXECUTING` with a matching CRM ledger row: rebuild a missing audit row from CRM facts and set `COMPLETED`; if rebuilding fails, set `AUDIT_PENDING`.
 - `EXECUTING` with no CRM ledger row: no CRM mutation occurred; return the approval to `APPROVED`. Any retry reruns every execution-time check and uses a new `execution_id`.
 - CRM write failure after claim: the approval stays `EXECUTING` until `recover()`; because there is no CRM ledger row, `recover()` returns it to `APPROVED`.
-- `AUDIT_PENDING`: rebuild audit from the CRM ledger and set `COMPLETED`; if recovery cannot complete, retain unresolved state and claim no success.
+- `AUDIT_PENDING` with no `execution_id`: rebuild a missing review event from the persisted reviewer decision and timestamp, then set `APPROVED` or `REJECTED`. If the event already exists, mark it reconciled and finalize the state without duplicating it.
+- `AUDIT_PENDING` with an `execution_id`: rebuild audit from the CRM ledger and set `COMPLETED`; if recovery cannot complete, retain unresolved state and claim no success.
 - Approvals-store failure after a successful CRM write: the persisted approval may remain `EXECUTING`; report unresolved, then recover from the CRM ledger when the approvals store is available.
 
 ## Failure table
@@ -120,6 +134,7 @@ The claim succeeds only when `rowcount == 1`. SQLite provides the single-winner 
 | Failure cause | Approval state / reason | Same approval retriable? | CRM store | Audit store |
 |---|---|---|---|---|
 | Approval is `PENDING`, not approved | `PENDING`, no state change | No; approval must first be approved | No mutation | No success event |
+| Review audit write fails | `AUDIT_PENDING` with no `execution_id`; `recover()` writes the persisted review event before finalizing | Yes, after recovery | No mutation | Review event is rebuilt or remains unresolved |
 | Missing approval row | No state change; no row to invalidate | No | No mutation | No success event |
 | Wrong scope at execution | `INVALIDATED` / `scope` | No; a new approval is required | No mutation | Denial event if audit write succeeds |
 | Requester or reviewer revoked | `INVALIDATED` / `revoked` | No; a new approval is required | No mutation | Denial event if audit write succeeds |
@@ -129,7 +144,7 @@ The claim succeeds only when `rowcount == 1`. SQLite provides the single-winner 
 | Crash between claim and CRM write | `EXECUTING`, then `APPROVED` after `recover()` if no CRM ledger row | Yes, after recovery and all checks rerun, using new `execution_id` | No mutation; no ledger row for that execution | No success event |
 | CRM write failure after claim | Stays `EXECUTING` until `recover()`, then `APPROVED` when no CRM ledger row exists | Yes, after recovery and all checks rerun, using new `execution_id` | No committed mutation or ledger row | No success event |
 | Approvals-store failure after CRM write | Remains `EXECUTING` until recoverable | Yes, via `recover()`; result unresolved until then | Mutation and ledger committed with `execution_id` and `approval_id` | Success audit may be absent |
-| Audit-store failure after CRM write | `AUDIT_PENDING` until recovery | Yes, via `recover()`; not caller-reported success before resolution | Mutation and ledger committed | Missing or incomplete audit row |
+| Audit-store failure after CRM write | `AUDIT_PENDING` with an `execution_id` until recovery | Yes, via `recover()`; not caller-reported success before resolution | Mutation and ledger committed | Missing or incomplete audit row |
 | Duplicate `execution_id` replay | Existing state; no second mutation | No new execution | Exactly one mutation and ledger row | Existing audit state; no duplicate success event. If the existing state is `EXECUTING` or `AUDIT_PENDING`, caller receives `unresolved`, never success. |
 | New `execution_id` against a `COMPLETED` approval | `COMPLETED` unchanged; new execution rejected | No; a new approval is required | No additional mutation or ledger row | Existing success audit only |
 | Concurrent workers on one approval | One claim winner; other claims fail | No additional execution | At most one mutation | One success audit or unresolved audit state |
@@ -213,18 +228,20 @@ For this workflow, `use_ticket()`, `evaluate_in_session()`, `prior_actions`, and
 | S12 | Audit-store failure after CRM write | CRM mutation and ledger committed; approval is or remains unresolved (`AUDIT_PENDING` when writable); recover audit from ledger |
 | S13 | Duplicate `execution_id` replay | Existing state; one mutation and one ledger row only; if state is `EXECUTING` or `AUDIT_PENDING`, caller receives `unresolved`, never success |
 | S14 | Reviewer denial | Approval `REJECTED`; CRM unchanged; rejection audit if available |
-| S15 | Denial-audit failure | Approval remains `REJECTED`; CRM unchanged; rejection outcome unchanged |
+| S15 | Rejection-audit failure | Approval remains `AUDIT_PENDING` and non-executable until recovery writes one rejection event, then becomes `REJECTED`; CRM unchanged |
 | S16 | Successful execution | Approval `COMPLETED`; CRM row, ledger, and audit share the same approval and execution IDs |
 | S17 | New `execution_id` against a `COMPLETED` approval | Execution rejected; approval remains `COMPLETED`; no additional CRM mutation or ledger row |
 
 ## Evidence-level assessment
 
-This assessment applies to the proposed deterministic SQLite design, not to the current in-memory implementation, and does not change any repository-level field.
+This assessment applies to the implemented deterministic SQLite validation
+baseline and its checked-in scenarios, not to the separate in-memory simulation
+or a production service. It does not change the repository-level evidence field.
 
 | Level | Status | Reason |
 |---|---|---|
-| L1 — Executable | pending implementation | The SQLite-backed design has not yet been implemented as executable evidence. |
-| L2 — Reproducible | pending implementation | Deterministic local tests must reproduce the bounded behavior before this design earns L2 evidence. The existing CRM workflow remains at L2. |
+| L1 — Executable | met locally | SQLite approval, CRM-ledger, and audit stores plus the execution service are executable reference code. |
+| L2 — Reproducible | met locally | The deterministic harness and tests reproduce bounded state/recovery behavior, including S15 rejection-audit recovery. |
 | L3 — Environment validated | not met | No representative external CRM, real identity provider, or bounded non-production environment is included. Deterministic fakes alone are not L3 evidence. |
 | L4 — Operational | not met | No deployment with telemetry, failure handling, and named operational ownership is evidenced. |
 | L5 — Production validated | not met | No production or customer evidence is included. |

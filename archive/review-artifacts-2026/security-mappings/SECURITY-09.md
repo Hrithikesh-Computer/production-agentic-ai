@@ -1,6 +1,6 @@
 # Security Mapping: Document 09, CRM Operational Copilot
 
-Source: `01-agent-architecture/09-crm-operational-copilot-salesforce-agentforce-poc.md`.
+Source: [`archive/design-sketches-2026/09-crm-operational-copilot-salesforce-agentforce-poc.md`](../../design-sketches-2026/09-crm-operational-copilot-salesforce-agentforce-poc.md).
 
 ## Actions this agent can take
 

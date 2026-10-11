@@ -471,6 +471,8 @@ Not:
 19. Conclusion
 20. Future Work
 
+This 20-part structure is the internal research synthesis format, not the repository's publication template. Before submitting the work as an article, map and condense the evidence into the canonical 16 headings in `templates/article-template.md` and required by `CONTRIBUTING.md`.
+
 ---
 
 ## ARCHITECTURAL PRINCIPLES

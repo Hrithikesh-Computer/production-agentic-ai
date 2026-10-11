@@ -19,6 +19,7 @@ C4Container
 
   Rel(employee, web, "Uses", "HTTPS")
   Rel(reviewer, web, "Reviews assigned proposal", "HTTPS")
+  Rel(web, idp, "Authenticates employee and reviewer sessions", "OIDC / SAML - to be confirmed")
   Rel(web, agent, "Submits request / receives response", "HTTPS")
   Rel(agent, idp, "Validates identity and obtains claims", "OIDC / SAML - to be confirmed")
   Rel(agent, authority, "Requests action decision and submits proposal", "Private API")

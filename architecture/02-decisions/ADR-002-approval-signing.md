@@ -24,7 +24,7 @@ If later requirements demand portable approval evidence across independently ope
 
 ## Consequences
 
-- A persistent approval store, atomic state transition, replay protection, expiry, and concurrency behavior are required; none is implemented in the repository.
+- A local deterministic SQLite prototype now implements persisted approval state, conditional execution claims, expiry checks, replay protection, and recovery across separate approval, CRM-ledger, and audit stores. Review state remains `AUDIT_PENDING` and non-executable until its audit event is durable; execution recovery is also explicitly tested. This is a validation baseline only: it is not a production approval service, does not establish cross-host availability or tamper-resistant audit, and does not replace deployment-specific concurrency and recovery design.
 - A changed target record or changed proposed values invalidate the approval and require review again.
 - The CRM connector must not accept a model-originated action without the gateway's current execution authorization.
 - Audit records need an integrity/retention design. This ADR does not claim that ordinary append-only storage is tamper-proof.
@@ -33,5 +33,6 @@ If later requirements demand portable approval evidence across independently ope
 ## Evidence and gaps
 
 - [Authority policy reference](../../04-reference-implementation/authority_policy.py).
+- [Local SQLite approval workflow](../../prototypes/crm_operational_copilot/README.md) and [validation contract](../../prototypes/crm_operational_copilot/VALIDATION-CONTRACT.md).
 - [Envelope threat boundary and key-management gaps](../../04-reference-implementation/adaptive-response-filter/EVIDENCE.md).
 - Customer identity mapping, CRM conditional writes, approval rules, signing requirements, key service, audit retention, and separation-of-duties policy: **not found in repo; discovery required**.

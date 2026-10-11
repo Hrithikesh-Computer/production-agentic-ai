@@ -3,6 +3,8 @@
 **Reviewed:** 2026-10-04
 **Scope:** Repository design and local evidence at the review snapshot. This is not a customer, deployment, or production assessment.
 
+**Status:** Historical snapshot, superseded by later local SQLite workflow and recovery validation. Re-check current code, evidence files, and CI before treating any inventory or finding below as current status.
+
 ## Assessment
 
 The repository is now a well-structured research handbook with a proposed CRM architecture bundle, a deterministic in-memory approval simulation, reproducible local benchmarks, and CI checks for tests, lint, typing, links, and benchmark figures. Those improvements strengthen the portfolio and its evidence discipline; they do not establish production readiness.

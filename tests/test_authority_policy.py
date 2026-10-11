@@ -39,6 +39,11 @@ def test_active_grant_and_allow_policy_allow_matching_action() -> None:
     assert decision.effect == "allow"
 
 
+def test_invalid_policy_effect_is_rejected() -> None:
+    with pytest.raises(ValueError, match="invalid policy effect"):
+        PolicyRule("read:account", "allow-ish", 10)  # type: ignore[arg-type]
+
+
 def test_missing_grant_is_denied() -> None:
     decision = evaluate_authority(
         grant=None,

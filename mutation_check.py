@@ -406,17 +406,23 @@ def run_module(
             copied_crm_prototype = (
                 work / "prototypes" / "crm_operational_copilot"
             )
-            copied_crm_prototype.mkdir(parents=True, exist_ok=True)
-            for prototype_file in crm_prototype.glob("*.py"):
-                shutil.copy2(
-                    prototype_file, copied_crm_prototype / prototype_file.name
-                )
+            shutil.copytree(
+                crm_prototype,
+                copied_crm_prototype,
+                dirs_exist_ok=True,
+                ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+            )
             scripts_dir = repo_root / "scripts"
             copied_scripts_dir = work / "scripts"
             copied_scripts_dir.mkdir(parents=True, exist_ok=True)
-            crm_evidence_checker = scripts_dir / "check_crm_validation_evidence.py"
-            if crm_evidence_checker.is_file():
-                shutil.copy2(crm_evidence_checker, copied_scripts_dir)
+            support_scripts = (
+                "check_crm_validation_evidence.py",
+                "check_fault_injection_approval_audit.py",
+            )
+            for script_name in support_scripts:
+                support_script = scripts_dir / script_name
+                if support_script.is_file():
+                    shutil.copy2(support_script, copied_scripts_dir)
             for config_name in ("pyproject.toml", "pytest.ini", "tox.ini", "setup.cfg"):
                 config = repo_root / config_name
                 if config.is_file():

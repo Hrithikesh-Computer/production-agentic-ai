@@ -13,6 +13,6 @@ S11,Approvals-store failure after CRM write,CRM mutation and ledger committed; a
 S12,Audit-store failure after CRM write,CRM mutation and ledger committed; approval is or remains unresolved (`AUDIT_PENDING` when writable); recover audit from ledger,passed
 S13,Duplicate `execution_id` replay,"Existing state; one mutation and one ledger row only; if state is `EXECUTING` or `AUDIT_PENDING`, caller receives `unresolved`, never success",passed
 S14,Reviewer denial,Approval `REJECTED`; CRM unchanged; rejection audit if available,passed
-S15,Denial-audit failure,Approval remains `REJECTED`; CRM unchanged; rejection outcome unchanged,passed
+S15,Rejection-audit failure,"Approval remains `AUDIT_PENDING` and non-executable until recovery writes one rejection event, then becomes `REJECTED`; CRM unchanged",passed
 S16,Successful execution,"Approval `COMPLETED`; CRM row, ledger, and audit share the same approval and execution IDs",passed
 S17,New `execution_id` against a `COMPLETED` approval,Execution rejected; approval remains `COMPLETED`; no additional CRM mutation or ledger row,passed

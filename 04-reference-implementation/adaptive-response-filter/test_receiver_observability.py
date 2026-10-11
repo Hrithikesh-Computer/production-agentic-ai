@@ -1,3 +1,5 @@
+import hashlib
+
 import metrics
 import ndjson_stream
 import pytest
@@ -47,6 +49,7 @@ def _chunk(message_id, sequence, total, payload):
         is_final=sequence == total - 1,
         message_id=message_id,
         authentication_key=AUTH_KEY,
+        message_digest=hashlib.sha256(message_id.encode("utf-8")).hexdigest(),
         merge_mode="concat",
     )
 
@@ -77,9 +80,9 @@ def test_session_and_payload_cap_rejections_emit_outcomes(monkeypatch):
     with pytest.raises(ValueError, match="sessions reached"):
         session_limited.add_chunk(_chunk("other", 0, 2, b"b"))
 
-    byte_limited = _manager(max_total_bytes=97)
+    byte_limited = _manager(max_total_bytes=107)
     assert byte_limited.add_chunk(_chunk("held-bytes", 0, 2, b"a")) is None
-    with pytest.raises(ValueError, match="total active payload bytes"):
+    with pytest.raises(ValueError, match="total active memory bytes"):
         byte_limited.add_chunk(_chunk("over-bytes", 0, 2, b"b"))
 
     assert events == [
@@ -339,12 +342,12 @@ def test_outcome_sink_failures_preserve_original_control_flow_and_state(monkeypa
 
     def run_limit_and_crc_case():
         now = [0.0]
-        manager = _manager(clock=lambda: now[0], max_total_bytes=97)
+        manager = _manager(clock=lambda: now[0], max_total_bytes=101)
         manager.add_chunk(_chunk("held", 0, 2, b"a"))
         assert_exception(
             lambda: manager.add_chunk(_chunk("over", 0, 2, b"b")),
             ValueError,
-            "total active payload bytes",
+            "total active memory bytes",
         )
         invalid = _chunk("checksum", 0, 2, b"payload").to_dict()
         invalid["checksum"] = "0" * 8
@@ -357,7 +360,7 @@ def test_outcome_sink_failures_preserve_original_control_flow_and_state(monkeypa
 
     def run_limit_and_crc_failing_sink_case():
         now = [0.0]
-        manager = _manager(clock=lambda: now[0], max_total_bytes=97)
+        manager = _manager(clock=lambda: now[0], max_total_bytes=101)
         manager.add_chunk(_chunk("held", 0, 2, b"a"))
         monkeypatch.setattr(
             reassembler_module,
@@ -367,7 +370,7 @@ def test_outcome_sink_failures_preserve_original_control_flow_and_state(monkeypa
         assert_exception(
             lambda: manager.add_chunk(_chunk("over", 0, 2, b"b")),
             ValueError,
-            "total active payload bytes",
+            "total active memory bytes",
         )
         invalid = _chunk("checksum", 0, 2, b"payload").to_dict()
         invalid["checksum"] = "0" * 8

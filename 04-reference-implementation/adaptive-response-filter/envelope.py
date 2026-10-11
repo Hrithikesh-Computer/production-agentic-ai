@@ -11,6 +11,7 @@ from typing import Mapping
 
 MAX_ENVELOPE_CHUNKS = 10_000
 MAX_ENVELOPE_PAYLOAD_BYTES = 16_000_000
+MAX_MESSAGE_ID_BYTES = 256
 MIN_AUTHENTICATION_KEY_BYTES = 16
 
 
@@ -28,6 +29,7 @@ def authentication_tag(
     payload: str,
     merge_mode: str,
     message_id: str,
+    message_digest: str,
     authentication_key: bytes,
 ) -> str:
     """Sign every routing, integrity, and payload field with HMAC-SHA256."""
@@ -46,6 +48,7 @@ def authentication_tag(
         "payload": payload,
         "merge_mode": merge_mode,
         "message_id": message_id,
+        "message_digest": message_digest,
     }
     canonical = json.dumps(
         authenticated_fields,
@@ -72,6 +75,7 @@ class WireEnvelope:
     payload: str
     message_id: str
     auth_tag: str
+    message_digest: str
     merge_mode: str = "concat"
 
     def __post_init__(self) -> None:
@@ -115,8 +119,19 @@ class WireEnvelope:
             raise TypeError("merge_mode must be a string")
         if self.merge_mode not in {"concat", "json-object"}:
             raise ValueError("merge_mode must be 'concat' or 'json-object'")
+        if not isinstance(self.message_digest, str) or len(self.message_digest) != 64:
+            raise ValueError("message_digest must be a 64-character SHA-256 hex string")
+        if any(
+            character not in "0123456789abcdefABCDEF"
+            for character in self.message_digest
+        ):
+            raise ValueError("message_digest must contain only hexadecimal characters")
         if not isinstance(self.message_id, str) or not self.message_id:
             raise ValueError("message_id must be a non-empty string")
+        if len(self.message_id.encode("utf-8")) > MAX_MESSAGE_ID_BYTES:
+            raise ValueError(
+                f"message_id exceeds protocol maximum of {MAX_MESSAGE_ID_BYTES} bytes"
+            )
         if not isinstance(self.auth_tag, str) or len(self.auth_tag) != 64:
             raise ValueError("auth_tag must be a 64-character HMAC-SHA256 hex string")
         if any(
@@ -140,6 +155,7 @@ class WireEnvelope:
         is_final: bool,
         message_id: str,
         authentication_key: bytes,
+        message_digest: str,
         merge_mode: str = "concat",
     ) -> WireEnvelope:
         """Build a checksummed and authenticated envelope."""
@@ -153,6 +169,7 @@ class WireEnvelope:
             payload=payload_text,
             merge_mode=merge_mode,
             message_id=message_id,
+            message_digest=message_digest,
             authentication_key=authentication_key,
         )
         return cls(
@@ -164,6 +181,7 @@ class WireEnvelope:
             message_id=message_id,
             auth_tag=tag,
             merge_mode=merge_mode,
+            message_digest=message_digest,
         )
 
     @classmethod
@@ -177,6 +195,7 @@ class WireEnvelope:
             "payload",
             "message_id",
             "auth_tag",
+            "message_digest",
         }
         missing = required.difference(data)
         if missing:
@@ -193,6 +212,7 @@ class WireEnvelope:
         payload = data["payload"]
         message_id = data["message_id"]
         auth_tag_value = data["auth_tag"]
+        message_digest = data["message_digest"]
         if isinstance(sequence, bool) or not isinstance(sequence, int):
             raise TypeError("sequence must be an integer")
         if isinstance(total_chunks, bool) or not isinstance(total_chunks, int):
@@ -207,6 +227,8 @@ class WireEnvelope:
             raise TypeError("message_id must be a string")
         if not isinstance(auth_tag_value, str):
             raise TypeError("auth_tag must be a string")
+        if not isinstance(message_digest, str):
+            raise TypeError("message_digest must be a string")
 
         return cls(
             sequence=sequence,
@@ -217,6 +239,7 @@ class WireEnvelope:
             message_id=message_id,
             auth_tag=auth_tag_value,
             merge_mode=merge_mode,
+            message_digest=message_digest,
         )
 
     def to_dict(self) -> dict[str, int | str | bool]:
@@ -230,6 +253,7 @@ class WireEnvelope:
             "message_id": self.message_id,
             "auth_tag": self.auth_tag,
             "merge_mode": self.merge_mode,
+            "message_digest": self.message_digest,
         }
 
     def payload_bytes(self) -> bytes:
@@ -245,6 +269,7 @@ class WireEnvelope:
             payload=self.payload,
             merge_mode=self.merge_mode,
             message_id=self.message_id,
+            message_digest=self.message_digest,
             authentication_key=authentication_key,
         )
         return hmac.compare_digest(self.auth_tag.lower(), expected)

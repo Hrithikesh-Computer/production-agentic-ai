@@ -188,6 +188,103 @@ def test_audit_failure_after_crm_write_returns_unresolved_not_success(tmp_path) 
     assert audit.count() == 0
 
 
+def test_review_audit_failure_keeps_approval_blocked_until_recovery(tmp_path) -> None:
+    service, approvals, crm, audit, *_ = _ready_system(tmp_path)
+    assert approvals.set_state("approval-1", "PENDING")
+    audit.fail_next_write = True
+
+    result = service.review(
+        "approval-1",
+        reviewer_id=REVIEWER,
+        approve=True,
+        reviewer_scope=REVIEWER_SCOPE,
+    )
+
+    assert result.status == "unresolved"
+    approval = approvals.get("approval-1")
+    assert approval is not None and approval.state == "AUDIT_PENDING"
+    assert audit.count("approval-1") == 0
+    assert _execute(service).status == "unresolved"
+    assert crm.get_record("CUST-1").record_version == 1
+
+    recovered = service.recover()
+
+    approval = approvals.get("approval-1")
+    events = audit.events_for_approval("approval-1")
+    assert recovered[0].status == "completed"
+    assert approval is not None and approval.state == "APPROVED"
+    assert len(events) == 1 and events[0].event_type == "approval_approved"
+    assert events[0].event_ts == 150
+    assert crm.get_record("CUST-1").record_version == 1
+
+    service.audit_id_factory = iter(("audit-2",)).__next__
+    assert _execute(service).status == "completed"
+    assert approvals.get("approval-1").state == "COMPLETED"
+
+
+def test_rejection_audit_failure_recovers_rejected_decision(tmp_path) -> None:
+    service, approvals, crm, audit, *_ = _ready_system(tmp_path)
+    assert approvals.set_state("approval-1", "PENDING")
+    audit.fail_next_write = True
+
+    result = service.review(
+        "approval-1",
+        reviewer_id=REVIEWER,
+        approve=False,
+        reviewer_scope=REVIEWER_SCOPE,
+    )
+
+    assert result.status == "unresolved"
+    approval = approvals.get("approval-1")
+    assert approval is not None and approval.state == "AUDIT_PENDING"
+    assert approval.reviewed_at == 150
+    assert approval.approved_at is None
+
+    recovered = service.recover()
+
+    approval = approvals.get("approval-1")
+    events = audit.events_for_approval("approval-1")
+    assert recovered[0].status == "rejected"
+    assert approval is not None and approval.state == "REJECTED"
+    assert len(events) == 1
+    assert events[0].event_type == "approval_rejected"
+    assert events[0].reason == "reviewer_denied"
+    assert events[0].event_ts == 150
+    assert crm.get_record("CUST-1").record_version == 1
+
+
+def test_review_finalization_failure_recovers_without_duplicate_audit(
+    tmp_path, monkeypatch
+) -> None:
+    service, approvals, _crm, audit, *_ = _ready_system(tmp_path)
+    assert approvals.set_state("approval-1", "PENDING")
+    finalize_review = approvals.finalize_review
+
+    def fail_finalization(approval_id: str, approve: bool) -> bool:
+        raise OSError("injected approvals-store failure")
+
+    monkeypatch.setattr(approvals, "finalize_review", fail_finalization)
+    result = service.review(
+        "approval-1",
+        reviewer_id=REVIEWER,
+        approve=True,
+        reviewer_scope=REVIEWER_SCOPE,
+    )
+
+    assert result.status == "unresolved"
+    assert result.reason == "approval_review_finalize_pending"
+    assert approvals.get("approval-1").state == "AUDIT_PENDING"
+    assert audit.count("approval-1") == 1
+
+    monkeypatch.setattr(approvals, "finalize_review", finalize_review)
+    recovered = service.recover()
+
+    events = audit.events_for_approval("approval-1")
+    assert recovered[0].status == "completed"
+    assert approvals.get("approval-1").state == "APPROVED"
+    assert len(events) == 1 and events[0].reconciled
+
+
 def test_recover_returns_executing_approval_to_approved_without_ledger(
     tmp_path,
 ) -> None:

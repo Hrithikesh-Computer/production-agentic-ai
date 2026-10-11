@@ -4,6 +4,16 @@
 
 Evidence here is for the local prototype and its static mock dataset only. This is not a Salesforce or REST integration, and neither example uses an LLM. The original `crm_copilot.py` remains read-only: `MockReasoningModel` deterministically selects two allowed read actions and the local summarizer computes a rule-based summary. The separate `approval_workflow.py` simulates a write against a private in-memory copy of the fixture data.
 
+## Evidence alignment rule
+
+This file is intentionally scoped to the repository's actual checked-in implementation.
+
+- Local implementation: the read-only mock CLI, the in-memory approval workflow, and the deterministic SQLite validation baseline under this prototype directory
+- Conceptual design: broader enterprise CRM, identity-provider, and deployment architecture in the surrounding architecture docs
+- Not claimed here: customer, production, or model-driven CRM behavior outside the local static dataset
+
+The evidence in this file supports bounded local validation only. It does not establish that a production CRM system, enterprise identity provider, or deployment pipeline exists in this repository.
+
 ## Actual local timing samples
 
 Captured 2026-10-01 by invoking `crm_copilot.py` three times with the local venv Python executable, `CRM_API_TOKEN` set to a non-production test value, and the mock CRM adapter. Timings are the values emitted by the prototype's `time.perf_counter()` measurement; they are not network, model, or production timings.
@@ -35,19 +45,19 @@ The separate approval-flow simulation has these locally implemented controls:
 - Write scope and policy are checked when proposing and checked again at execution; the mock connector verifies the approved proposal matches actor, target, field, value, and record version before changing its in-memory fixture.
 - A record-version change between proposal and execution marks the proposal stale and prevents the update.
 - The demonstration records proposal, approval/rejection, authorization denial, execution start, and execution result as local JSONL events.
-- Focused tests cover the successful propose/refer/approve/recheck/execute path, no execution before approval, direct connector refusal without a matching approval, self-approval denial, missing write scope, requester and reviewer revocation, stale record, expiry, rejection, replay, and event timestamps. The focused workflow test file reports 10 passing tests; the separate authority referral tests cover decision propagation and ticket behavior.
-- Local validation for the workflow: 10 focused pytest cases pass, Ruff passes, and mypy reports no issues in the workflow and focused test files when the repository-local import paths are configured.
+- Focused tests cover the successful propose/refer/approve/recheck/execute path, no execution before approval, direct connector refusal without a matching approval, self-approval denial, missing write scope, requester and reviewer revocation, stale record, direct connector expiry at the boundary, rejection, replay, and event timestamps. The exact test count is intentionally omitted here; use the current test output rather than a stale count.
+- The in-memory simulation is linted and type-checked with repository-local import paths. The separate SQLite baseline has its own execution-service and contract tests.
 
 These statements describe only the `approval_workflow.py` in-memory simulation, not the separate SQLite validation baseline below. They are local prototype controls, not production guarantees. Principal and reviewer names are supplied by the caller rather than authenticated; proposals, approval state, and mock CRM data are in memory; JSONL is not tamper-resistant; and a process crash between the mock write and final audit event is not transactionally recovered. The original CLI remains read-only; only the separate workflow demonstration writes to its private in-memory fixture.
 
-Focused tests observed 6 passing CRM cases after these controls were added. The prototype and its test file pass Ruff and mypy.
+Earlier focused timing and test notes above are scoped to the in-memory simulation; they do not summarize the SQLite baseline.
 
 ## SQLite validation baseline
 
 | Label | Assessment |
 |---|---|
 | IMPLEMENTED LOCALLY | `identity_provider.py`, the separate approvals/CRM/audit SQLite stores, canonical policy snapshots using `authority_policy.py`, the execution service, and on-demand `recover()`. |
-| VALIDATED LOCALLY | S01-S17 each have one harness result row; persisted state is checked for each scenario. The concurrency case uses separate processes/connections, a start barrier, 50 workers, and five rounds. CRM-write, approvals-store, and audit-store failures plus recovery are exercised with deterministic injection. Thirteen targeted CRM mutants were killed with no survivors or mutation-harness errors. |
+| VALIDATED LOCALLY | S01-S17 each have one harness result row; persisted state is checked for each scenario. S15 now verifies that a rejection remains `AUDIT_PENDING` after audit failure and becomes `REJECTED` only after recovery writes the rejection event. The concurrency case uses separate processes/connections, a start barrier, 50 workers, and five rounds. CRM-write, approvals-store, and audit-store failures plus recovery are exercised with deterministic injection. Thirteen targeted CRM mutants were killed with no survivors or mutation-harness errors. The run metadata records both the Git base commit and a SHA-256 of the source/test/contract inputs. |
 | PROPOSED | The broader enterprise CRM copilot, production authority gateway, authenticated identity integration, and operational audit service. |
 | NOT VALIDATED | Real IdP or CRM behavior, distributed/multi-host concurrency, network behavior, telemetry, customer usage, deployment, disaster recovery, and production readiness. |
 

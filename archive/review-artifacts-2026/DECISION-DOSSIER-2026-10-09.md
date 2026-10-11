@@ -1,0 +1,249 @@
+# Decision Dossier: Production Agentic AI Reference Repository
+
+**Assessment date:** 2026-10-09  
+**Decision posture:** Research/reference artifact only; no adoption or production-code recommendation.  
+**Confidence:** High for local implementation and test behavior; medium for risk ranking; low for comparative procurement until business context is supplied.
+
+## 1. Executive Summary
+
+This repository is a research handbook and set of bounded local reference experiments, not a production platform. The CRM SQLite baseline verifies useful local controls, including conditional approval claims, record-version checks, duplicate-execution protection, and explicit unresolved audit recovery. It also has a tenant-keying defect, an audit gap after a committed CRM write, and no scheduled/owned recovery contract; approval and rejection audit failures can leave durable business state without the corresponding decision record. A checked-in single-file SQLite variant passes its injected rollback tests and closes the specific local cross-store failure window under its shared-connection transaction model, but does not prove durability through process/power failure or extend to external CRM/audit systems. The response-delivery benchmarks explicitly do not establish delivery benefit. **Recommendation (high confidence):** do not adopt; conditionally use as design/test material, and compare native CRM/IdP capability, in-house options, and commercial categories only after workflow and control requirements are known. **Recommendation (medium confidence):** if only one defect gets remediation priority for a multi-tenant CRM use case, address tenant-qualified identity resolution first; if the non-negotiable requirement is no mutation without an audit record, I1 becomes a hard decision gate and must be solved before writes are enabled. Business-specific choice remains **UNKNOWN** because all business-context fields are placeholders.
+
+## 2. Verified Facts vs. Inference
+
+### Verified facts
+
+- The top-level README describes a research/reference repo, says the CRM workflow uses in-memory mocks and caller-supplied identities, and explicitly says it is not a production runtime or live CRM/IdP integration: [README.md](../../README.md#L21-L24).
+- The separate SQLite validation baseline has three stores and does not use an authenticated enterprise IdP, live CRM, or distributed transaction: [prototypes/crm_operational_copilot/README.md](../../prototypes/crm_operational_copilot/README.md#L5-L11).
+- `LocalIdentityProvider` stores identities in a dictionary keyed by `identity.principal`; `resolve()` and `authorize()` accept no tenant argument: [identity_provider.py](../../prototypes/crm_operational_copilot/identity_provider.py#L35-L67).
+- CRM record mutation and execution-ledger insertion share a transaction in the CRM database: [crm_store.py](../../prototypes/crm_operational_copilot/crm_store.py#L98-L151).
+- Execution commits that CRM transaction before writing the audit store; on audit failure it returns `unresolved` and attempts `AUDIT_PENDING`: [execution_service.py](../../prototypes/crm_operational_copilot/execution_service.py#L184-L228).
+- Manual `recover()` can reconstruct audit from the CRM ledger, but its docstring states it is on-demand and starts no background work: [execution_service.py](../../prototypes/crm_operational_copilot/execution_service.py#L291-L359).
+- Approval review persists the approval/rejection state before attempting its audit event: [approvals_store.py](../../prototypes/crm_operational_copilot/approvals_store.py#L137-L150), [execution_service.py](../../prototypes/crm_operational_copilot/execution_service.py#L244-L286).
+- `REPO-MAP.md` is dated 2026-10-03 and calls the CRM prototype a partial mock; its inventory omits the SQLite baseline and `variants/` source paths: [REPO-MAP.md](../../REPO-MAP.md#L1-L6), [REPO-MAP.md](../../REPO-MAP.md#L71-L80).
+- `VALIDATION-CONTRACT.md` contains stale statements that SQLite implementation is pending and says the CRM baseline remains the in-memory workflow, despite documenting the SQLite source elsewhere: [VALIDATION-CONTRACT.md](../../prototypes/crm_operational_copilot/VALIDATION-CONTRACT.md#L46-L53), [VALIDATION-CONTRACT.md](../../prototypes/crm_operational_copilot/VALIDATION-CONTRACT.md#L220-L247).
+- The variant experiment source and results call variants comparative evidence, not recommendations; the baseline is unchanged: [VARIANTS-FINDINGS.md](../../prototypes/crm_operational_copilot/variants/VARIANTS-FINDINGS.md#L5-L8).
+- Local response-delivery measurements explicitly are not a delivery-latency benefit and exclude production network/client effects: [benchmark README](../../benchmarks/response-delivery/README.md#L17-L30).
+- NFR, cost, vendor pricing, customer volumes, risk costs, and recovery objectives are placeholders/TBD: [05-nfr-and-sizing.md](../../architecture/05-nfr-and-sizing.md#L5-L18), [07-cost-model.md](../../architecture/07-cost-model.md#L1-L3), [07-cost-model.md](../../architecture/07-cost-model.md#L38-L70).
+
+### Inference
+
+- **INFERENCE:** this repository may be useful as an architecture review and control-contract seed, but its value as a production component is low until boundary integrations and operation are validated.
+- **INFERENCE:** for a genuinely multi-tenant CRM use case, a tenant-blind identity lookup has the highest immediate security priority because the resolution function cannot distinguish same-named principals by tenant.
+- **INFERENCE:** if audit completeness is a legal or policy requirement, both execution and reviewer-decision persistence must share a durable boundary or a separately guaranteed outbox/reconciliation protocol; a warning returned to the caller is insufficient as the invariant itself.
+- **UNKNOWN:** whether multi-tenancy, regulated data, strict audit atomicity, or a particular latency/cost objective applies. Resolution: named business workflow, data classification, and acceptance criteria from product, security, compliance, and CRM/data owners.
+
+## 3. Invariants
+
+Failure-mode labels: **fail-open** means an unsafe action is allowed; **fail-silent** means state is persisted without the required record/observable signal; **fail-stop** means the operation is denied or left unresolved. A component can have multiple behaviors depending on which store has failed.
+
+| ID | Formal statement | Scope | Violation mode | Status and evidence |
+|---|---|---|---|---|
+| I1 | For every committed CRM mutation $m$, there exists exactly one corresponding durable audit record $a$ with the same execution/approval binding, committed in the same atomic boundary as $m$, **or** within a specified reconciliation bound $\Delta$ with monitored overdue detection. | CRM, ledger, audit, recovery. | Current: fail-silent state gap temporarily; caller gets fail-stop `unresolved`, not success. | **VIOLATES** the stated atomic-or-bounded-monitored contract. CRM commit precedes audit at [execution_service.py](../../prototypes/crm_operational_copilot/execution_service.py#L184-L228); no reconciliation bound/monitor is defined. The audit failure test asserts ledger=1 and audit=0 at [test_execution_service.py](../../prototypes/crm_operational_copilot/test_execution_service.py#L177-L188). |
+| I2 | Identity resolution is a function $R:(principal,tenant)\to identity\cup\{\bot\}$, and authorization permits action $x$ only when the resolved identity's tenant equals the requested tenant and its current status/scope permit $x$. | Identity provider and every caller/approval/CRM authorization path. | Fail-open relative to intended tenant boundary; current model silently overwrites same principal. | **VIOLATES.** Storage is `dict[str, Identity]`, writes by principal, and lookup/authorization omit tenant: [identity_provider.py](../../prototypes/crm_operational_copilot/identity_provider.py#L35-L67). `execute()` authorizes with principal and scope only: [execution_service.py](../../prototypes/crm_operational_copilot/execution_service.py#L80-L92). |
+| I3 | For every unresolved execution at time $t$, an owned recovery worker detects and attempts reconciliation by $t+RTO$; observed recovery lag is at most the agreed bound, and unresolved backlog is observable/alerted. | Recovery orchestration, operations, audit/CRM/approval stores. | Fail-silent operationally (no background trigger/alert); state remains fail-stop to callers. | **UNVERIFIED / NOT IMPLEMENTED.** `recover()` is explicitly on-demand: [execution_service.py](../../prototypes/crm_operational_copilot/execution_service.py#L291-L293); the contract says no scheduler/background process and NFR values are TBD: [VALIDATION-CONTRACT.md](../../prototypes/crm_operational_copilot/VALIDATION-CONTRACT.md#L108-L114), [05-nfr-and-sizing.md](../../architecture/05-nfr-and-sizing.md#L14-L18). |
+| I4 | For each approval $p$, at most one execution ID may cause a CRM mutation, and replay of $p$ or its execution ID never increments the target record more than once. | Approval claim and CRM transaction. | Fail-open if violated; duplicate business side effect. | **HOLDS in tested local baseline.** Claim is a conditional update on `APPROVED` and unexpired: [approvals_store.py](../../prototypes/crm_operational_copilot/approvals_store.py#L153-L163). CRM ledger uses unique execution ID and transaction: [crm_store.py](../../prototypes/crm_operational_copilot/crm_store.py#L98-L151). Contract tests include replay and N=50 contention; current baseline tests passed locally. Deployment/distributed guarantee remains **UNVERIFIED**. |
+| I5 | A mutation is permitted only if the approved action/payload/actor/target/policy snapshot and expected record version still match at execution; any mismatch yields no new CRM mutation. | Approval, policy snapshot, CRM record version. | Fail-open if stale or mismatched operation proceeds. | **HOLDS for covered local paths.** `execute()` checks requester/reviewer, record version, and policy hash before claim/write: [execution_service.py](../../prototypes/crm_operational_copilot/execution_service.py#L88-L168); conditional CRM update uses expected version: [crm_store.py](../../prototypes/crm_operational_copilot/crm_store.py#L117-L144). Contract positive and stale-witness tests passed locally. Real CRM conditional-write semantics are **UNVERIFIED**. |
+| I6 | Every authorization, approval, rejection, and execution state transition that is committed has a durable correlated audit record, or remains non-executable/non-terminal until that record is committed or bounded recovery succeeds. | Approval state and audit store. | Fail-silent; approval may be executable or rejection terminal with no audit. | **VIOLATES.** `set_review()` commits `APPROVED`/`REJECTED` before `review()` calls audit: [approvals_store.py](../../prototypes/crm_operational_copilot/approvals_store.py#L137-L150), [execution_service.py](../../prototypes/crm_operational_copilot/execution_service.py#L256-L286). Existing execution-service test proves denial auditing can fail while result/state remain invalidated at [test_execution_service.py](../../prototypes/crm_operational_copilot/test_execution_service.py#L131-L150); new strict xfails witness review paths. |
+| I7 | For any audit record $a$, unauthorized mutation/deletion is prevented or detectable; retention and access rules are enforced for the required period. | Audit persistence, access, retention, integrity. | Fail-silent/tampering risk and compliance exposure. | **UNVERIFIED / ABSENT LOCALLY.** AuditStore is a writable SQLite table with no append-only, cryptographic chain, external integrity proof, retention, or access policy: [audit_store.py](../../prototypes/crm_operational_copilot/audit_store.py#L27-L64). The architecture explicitly says local audit is not tamper-resistant: [01-context-and-containers.md](../../architecture/01-context-and-containers.md#L20-L29). |
+
+## 4. Contract Test Files + Raw Test Output
+
+Added [test_crm_decision_contracts.py](../../tests/test_crm_decision_contracts.py). No production/source implementation was modified. The file contains positive controls for normal correlated audit, one-tenant authorization, manual recovery, replay denial, record-version binding/stale rejection, normal approval audit; expected-failure witnesses for I1, I2, I3, and I6; plus a deterministic generated property-style tenant collision check and an intentionally broken 50-claim negative control.
+
+`xfail(strict=True)` is used where the desired invariant is absent. An `XFAIL` confirms that the contract assertion is currently false; a future `XPASS` deliberately fails the test run, requiring removal of the marker and promotion to a passing requirement.
+
+**Raw focused pytest output (Python 3.14.6, Windows):**
+
+```text
+============================= test session starts =============================
+platform win32 -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\HP\Documents\GitHub\production-agentic-ai\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\HP\Documents\GitHub\production-agentic-ai
+configfile: pyproject.toml
+plugins: platformdirs-4.12.3, cov-7.1.0
+collected 16 items
+
+tests/test_crm_decision_contracts.py::test_i1_audit_failure_is_atomic_or_has_bounded_monitored_reconciliation XFAIL
+tests/test_crm_decision_contracts.py::test_i1_normal_mutation_has_correlated_durable_audit PASSED
+tests/test_crm_decision_contracts.py::test_i2_identity_resolution_is_principal_and_tenant_qualified[simple-name] XFAIL
+tests/test_crm_decision_contracts.py::test_i2_identity_resolution_is_principal_and_tenant_qualified[delimited-name] XFAIL
+tests/test_crm_decision_contracts.py::test_i2_identity_resolution_is_principal_and_tenant_qualified[service-name] XFAIL
+tests/test_crm_decision_contracts.py::test_i2_generated_principal_tenant_pairs_do_not_shadow_each_other XFAIL
+tests/test_crm_decision_contracts.py::test_i2_single_tenant_identity_authorizes_its_configured_scope PASSED
+tests/test_crm_decision_contracts.py::test_i3_unresolved_execution_has_scheduled_owned_recovery_contract XFAIL
+tests/test_crm_decision_contracts.py::test_i3_manual_recovery_reconciles_audit_after_dependency_returns PASSED
+tests/test_crm_decision_contracts.py::test_i4_completed_approval_replay_does_not_mutate_twice PASSED
+tests/test_crm_decision_contracts.py::test_i4_broken_read_then_write_control_is_a_negative_race_witness PASSED
+tests/test_crm_decision_contracts.py::test_i5_current_approval_executes_against_its_bound_record_version PASSED
+tests/test_crm_decision_contracts.py::test_i5_stale_record_is_rejected_without_a_second_mutation PASSED
+tests/test_crm_decision_contracts.py::test_i6_normal_approval_decision_is_audited PASSED
+tests/test_crm_decision_contracts.py::test_i6_failed_approval_audit_prevents_execution_until_reconciled XFAIL
+tests/test_crm_decision_contracts.py::test_i6_failed_rejection_audit_does_not_leave_unlogged_terminal_state XFAIL
+
+======================== 8 passed, 8 xfailed in 3.55s =========================
+```
+
+**Interpretation:** 8 pass results confirm local normal-path controls; 8 xfails confirm current missing tenant qualification, atomic/bounded recovery, operationalized recovery, and audit-gated review outcomes. No xpass, error, or skip. The generated tenant xfail iterates 4 principal strings × 3 tenants × 3 tenants, omitting same-tenant pairs. The “property-style” check is deterministic generated coverage, not Hypothesis statistical/property testing; Hypothesis is not a declared dependency.
+
+**Raw variant pytest output:**
+
+```text
+============================= test session starts =============================
+platform win32 -- Python 3.14.6, pytest-9.1.1
+collected 5 items
+
+prototypes/crm_operational_copilot/variants/test_claims.py::test_n50_claim_race_passes_for_atomic_claim_variants PASSED
+prototypes/crm_operational_copilot/variants/test_claims.py::test_n50_single_winner_assertion_fails_on_broken_control PASSED
+prototypes/crm_operational_copilot/variants/test_recovery.py::test_s10_no_write_recovery_invalidates_and_requires_fresh_review PASSED
+prototypes/crm_operational_copilot/variants/test_store_layout.py::test_s11_shared_transaction_rolls_back_after_approval_store_failure PASSED
+prototypes/crm_operational_copilot/variants/test_store_layout.py::test_s12_shared_transaction_rolls_back_crm_and_ledger_on_audit_failure PASSED
+
+============================== 5 passed in 6.89s ==============================
+```
+
+**Anomaly:** the broader `tests/test_crm_validation_scenarios.py` verbose run printed all 17 S01–S17 cases and started its five process-stress rounds; the terminal session ended before a final summary. The isolated S12 test passed (`1 passed, 23 deselected in 0.26s`), and all 17 deterministic scenario cases later passed (`17 passed, 7 deselected in 0.81s`). No claim is made about a completed fresh five-round process stress run. The canonical `scripts/check_crm_variants.py` invocation also returned no captured output/status from the terminal; fresh direct variant pytest did pass all 5 tests. Existing committed variant results and matrix are present, but a new byte-for-byte harness reproduction is **UNVERIFIED in this run**.
+
+## 5. Risk Register
+
+Scales: likelihood/impact Low, Medium, High. Priority is a triage function: high impact and high likelihood rank first; low detectability raises priority. Current detection is stated explicitly; priority is not a computed loss expectation because event rates and business impact are **UNKNOWN**.
+
+| Rank | Risk | Likelihood and evidence | Impact / blast radius | Detection | Reversibility | Priority | Mitigation | Owner role |
+|---:|---|---|---|---|---|---|---|---|
+| 1 | **D1 / I2 tenant identity collision** | **High locally:** same-principal insert overwrites `_identities[principal]`; four xfail witnesses exercise collisions. [identity_provider.py](../../prototypes/crm_operational_copilot/identity_provider.py#L39-L56) | **High** if multi-tenant: cross-tenant authorization/data exposure. Applies to tenant identity and potentially CRM/customer data. | Current: code inspection and collision test; not observable as an alert. Production exposure **UNKNOWN**. | High if caught before deployment; potentially very high for disclosure, breach response, and downstream data copies. | **Critical** because impact is high and detection is not operational. | Contract identity key as `(principal, tenant)`; make tenant mandatory end-to-end; reject mismatch; test same-name collisions, tenant swaps, and CRM row scope. | Security + identity platform |
+| 2 | **D2 / I1 CRM write-audit split commit** | **High under injected audit outage:** committed CRM/ledger with zero audit rows is asserted by test. [test_execution_service.py](../../prototypes/crm_operational_copilot/test_execution_service.py#L177-L188) | **High** when writes require provable audit: records, control evidence, compliance, incident investigation. Caller receives unresolved, not success. | Current local failure injection observes `AUDIT_PENDING`; no bounded alert/reconciliation SLA exists. | Moderate before deployment; high after data mutation if audit evidence cannot be reconstructed or dependencies diverge. | **Critical** for strict audit environments. | Prefer one transactional owner where CRM and audit can participate; otherwise persist outbox with mutation intent and reconciliation, hard bounds, alerts, idempotency, and recovery tests. | CRM/data owner + security/compliance |
+| 3 | **D8 additional: review/rejection state precedes audit** | **High under audit failure:** `set_review()` commits first, `review()` writes audit second; xfail witnesses show approve may execute and reject may remain without audit. [execution_service.py](../../prototypes/crm_operational_copilot/execution_service.py#L256-L286) | **High** for approval accountability and separation-of-duties evidence; can lead to write authorized on unlogged approval. | `audit_error` returned locally, but persisted state and later execution can be observed only by reconciliation; no alarm. | Moderate before execution; high if action occurs and decision provenance is missing. | **Critical** alongside D2. | Make approval state/audit one transaction or introduce durable approval-event outbox; prohibit execution until durable approval evidence exists; test approve/reject sink failures. | Security + CRM/data owner |
+| 4 | **D3 / I3 recovery not operationalized** | **High as a capability gap:** `recover()` says on-demand/no background work; contract confirms no scheduler. [execution_service.py](../../prototypes/crm_operational_copilot/execution_service.py#L291-L293), [VALIDATION-CONTRACT.md](../../prototypes/crm_operational_copilot/VALIDATION-CONTRACT.md#L108-L114) | **High** availability and audit-completeness risk; unresolved writes may remain unresolved indefinitely. | Locally, unresolved state can be queried; production monitor, backlog age, owner, RPO/RTO are absent. | Moderate if a reconciliation ledger remains intact; rises with duration, retention gaps, or conflicting updates. | **High** (detectability currently low). | Define owner, poll schedule, backlog/age metrics, retry policy, alert, RPO/RTO and incident runbook; failure-inject scheduler and restore. | Operations/SRE + CRM owner |
+| 5 | **D4 audit is not tamper-resistant; denials/rejections may persist without audit** | **Medium–High:** SQLite audit permits normal writes; approval rejection persists before audit, and existing denial path persists `INVALIDATED` if audit fails. [audit_store.py](../../prototypes/crm_operational_copilot/audit_store.py#L27-L64), [test_execution_service.py](../../prototypes/crm_operational_copilot/test_execution_service.py#L131-L150) | **High** compliance/trust/forensics blast radius; no production compliance claim. | Current tests can inject sink errors; tampering/deletion is not detected by a local integrity control. | High once evidence is required or records are altered/expired. | **High**. | Identify audit authority and retention rules; append-only/immutable destination or signed/hash-chained records, least-privilege access, retention/legal-hold and reconciliation controls; independent tamper test. | Compliance/security + audit platform |
+| 6 | **D5 evidence mistaken for deployment evidence** | **Medium:** README/EVIDENCE clearly mark local-only, but dated map and stale contract text conflict; artifacts can be detached from provenance. [EVIDENCE.md](../../prototypes/crm_operational_copilot/EVIDENCE.md#L49-L66), [VALIDATION-CONTRACT.md](../../prototypes/crm_operational_copilot/VALIDATION-CONTRACT.md#L220-L247) | **High trust and procurement risk** if L2 is presented as operational or customer validated. | Detect by evidence-level review, provenance, and reconciling docs to CI; currently mixed. | Moderate: correct claims before commitment; reputational loss after external claims is harder to reverse. | **High**. | One canonical capability/evidence table generated or checked in CI; explicitly label local fake results; require dated environment and commit provenance for claims. | Product/architecture + evidence owner |
+| 7 | **D6 documentation drift** | **High:** `REPO-MAP.md` omits SQLite and variants; `VALIDATION-CONTRACT.md` says implementation pending; newer README/architecture/EVIDENCE describe SQLite baseline. [REPO-MAP.md](../../REPO-MAP.md#L71-L80), [VALIDATION-CONTRACT.md](../../prototypes/crm_operational_copilot/VALIDATION-CONTRACT.md#L220-L247), [00-solution-overview.md](../../architecture/00-solution-overview.md#L27-L40) | **Medium–High** decision quality and maintenance risk; may misstate implemented controls or duplicate work. | Reviewers find conflicts; no cross-doc consistency check is shown. | Low–Moderate: docs are reversible, but decisions made from stale statements are not. | **High** due to high occurrence and poor discoverability. | Update inventory and obsolete contract paragraphs; designate canonical evidence page; add scripted link/status consistency check in CI. | Architecture/documentation owner |
+| 8 | **D7 no demonstrated differentiator or ROI** | **High evidence gap:** cost worksheet has TBD inputs and response benchmark explicitly disclaims latency benefit. [07-cost-model.md](../../architecture/07-cost-model.md#L38-L70), [benchmark README](../../benchmarks/response-delivery/README.md#L17-L30) | **Medium–High** opportunity cost and budget risk; value cannot be attributed. | Not currently measurable from repo; needs task baseline and user study. | Low before build; high after sunk integration and operating costs. | **High** before funding, not an implementation defect. | Measure one representative task against current process; define success threshold, attribution, and 3-year cost assumptions before build/buy. | Product/finance |
+| 9 | **Additional: CRM model has one record row per customer** | **Certain locally:** `customer_id` is the primary key while field is a separate column, limiting row shape to one field per customer. [crm_store.py](../../prototypes/crm_operational_copilot/crm_store.py#L38-L49) | **Medium** correctness/generalization and data integrity; could overwrite/omit multiple fields in a richer workflow. | Schema review or multi-field fixture detects it; current contract only exercises one field. | Low–Moderate with controlled test data; higher after migrating prototype data/schema assumptions. | **Medium**; relevant only if scope expands beyond one field. | Before adding fields, choose composite `(tenant, customer, field)` key or normalized CRM representation and test multi-field records. | CRM/data owner |
+| 10 | **Additional: shared-transaction variant concentrates state in one SQLite dependency** | **Medium:** all stores share one connection/file; local rollback tested, but filesystem/power-loss and external CRM/audit not tested. [store_layout.py](../../prototypes/crm_operational_copilot/variants/store_layout.py#L19-L60), [VARIANTS-FINDINGS.md](../../prototypes/crm_operational_copilot/variants/VARIANTS-FINDINGS.md#L13-L16) | **High** availability/durability risk if treated as production; single-store outage affects approvals, mutation, and audit together. | SQLite health and local test observe ordinary errors; power-loss corruption/recovery, backup/restore, and operational SLA not tested. | Moderate with backups and replay design, unknown without restore evidence. | **High** for adoption of the variant as a production pattern. | Test commit durability, process kill, power-loss proxy, backup/restore, lock contention, migrations, and operational failover; do not extrapolate transaction semantics to remote systems. | Operations + data platform |
+
+### Ranked list and single-risk answer
+
+1. D1 tenant identity collision (I2).  
+2. D2 write/audit atomicity (I1).  
+3. D8 approval/rejection audit ordering (I6).  
+4. D3 non-operational recovery (I3).  
+5. D4 audit integrity and incomplete decision records.  
+6. D5 evidence-level confusion.  
+7. D6 documentation drift.  
+8. D7 unproven value/ROI.  
+9. Single-field-per-customer local schema.  
+10. Shared SQLite single-store durability/availability assumption.
+
+**If only one risk can be addressed first:** fix **D1/I2** for a multi-tenant scenario. It has a demonstrated collision witness, affects the authorization boundary directly, and the resolution function currently lacks tenant as an input. This ranking is **INFERENCE** conditional on multi-tenancy. If the workflow is single-tenant but requires strict write audit, D2/I1 is the first hard gate instead; context is **UNKNOWN**.
+
+## 6. Vendor/Build Comparison Matrix + Scoring Rule
+
+Candidate names are categories/placeholders, not capability claims. The only filled evidence for Candidate A describes the repo's current local reference; “adapted” deployment capabilities remain unknown. Candidate C is a **placeholder for a leading CRM-native AI/workflow platform (e.g., Salesforce Agentforce, pending procurement validation)**, not an assertion about its capabilities. Candidate D is a **placeholder for a leading enterprise low-code workflow/agent platform (e.g., Microsoft Copilot Studio, pending validation)**. No vendor documentation or contract evidence was evaluated in this repository assessment. Candidate E means “use existing licensed CRM/IdP native controls with no new agent layer,” not “controls are sufficient.”
+
+Weights total 100. **Rationale:** safety/control and identity boundaries dominate the decision because this use case can mutate customer records; operational/compliance viability follows; economics and differentiation matter only after the safety gates. Scores 0–5: 0 = no evidence/absent, 1 = weak, 2 = partial, 3 = plausible but unverified, 4 = verified fit for scoped requirement, 5 = independently validated. An `UNKNOWN` is not score 0; it blocks a defensible numeric total until resolved.
+
+| Criterion | Weight | A: Adopt this repo (adapted) | B: Build in-house | C: Commercial #1 placeholder | D: Commercial #2 placeholder | E: Existing CRM/IdP native capabilities |
+|---|---:|---|---|---|---|---|
+| Authenticated identity integration (real IdP) | 10 | **UNKNOWN:** Which IdP adapters, token validation, lifecycle/revocation guarantees? Local identities caller-supplied. | **UNKNOWN:** Which IdP protocol/team capability and test plan? | **UNKNOWN:** Does selected edition federate with our IdP and enforce subject/tenant claims? | **UNKNOWN:** Same question for selected SKU/configuration. | **UNKNOWN:** Which existing IdP/CRM claims are enforced in the workflow? |
+| Tenant isolation guarantees (I2) | 10 | **Known fail locally:** principal-only key; adaptation must redesign and test. | **UNKNOWN:** What tenant model and isolation proof will be implemented? | **UNKNOWN:** What tenant boundary is contractual and independently tested? | **UNKNOWN:** What tenant boundary is contractual and independently tested? | **UNKNOWN:** Do current CRM sharing, row-level security, and IdP mapping enforce tenant boundary? |
+| Field-level CRM enforcement | 8 | **UNKNOWN:** Local fake has narrow field but no live CRM enforcement. | **UNKNOWN:** Which server-side CRM controls and connector checks? | **UNKNOWN:** Which objects/fields and enforcement in chosen SKU? | **UNKNOWN:** Which objects/fields and enforcement in chosen SKU? | **UNKNOWN:** Are native field permissions adequate for service/app identities? |
+| Approval bound to current record + policy state | 9 | **Partial local evidence:** record version and policy hash rechecked; real connector semantics unknown. | **UNKNOWN:** What approval object, optimistic concurrency, and policy version contract? | **UNKNOWN:** Does product bind exact payload/record version/policy and revalidate before write? | **UNKNOWN:** Same question. | **UNKNOWN:** Can native approval bind payload and record version and recheck state atomically? |
+| At-most-once execution | 8 | **Local evidence:** conditional claim/unique execution ledger; distributed guarantee unknown. | **UNKNOWN:** What idempotency key and transaction boundary will guarantee it? | **UNKNOWN:** What API idempotency and retry semantics are documented? | **UNKNOWN:** What API idempotency and retry semantics are documented? | **UNKNOWN:** Does native workflow support idempotent side effects and retries? |
+| Audit guarantees: atomicity, retention, tamper evidence (I1) | 12 | **Known gap in baseline:** CRM commit precedes audit; variant closes only tested local store failures. Tamper retention absent. | **UNKNOWN:** Which event store and transactional/outbox guarantee? | **UNKNOWN:** What immutable audit, retention, export, and transaction guarantees are contracted? | **UNKNOWN:** Same question. | **UNKNOWN:** Is audit export complete, immutable, retained, and correlated with CRM commit? |
+| Recovery RPO/RTO and operational ownership (I3) | 9 | **Known absent operationally:** manual `recover()` only; no schedule/owner/SLO. | **UNKNOWN:** Which on-call team, alert and recovery objectives? | **UNKNOWN:** What SLA, recovery semantics, escalation and support tier apply? | **UNKNOWN:** Same question. | **UNKNOWN:** Which team owns replay/reconciliation and what are RPO/RTO? |
+| Time-to-value | 5 | **Partial:** executable local reference exists; production integrations/controls unknown. | **UNKNOWN:** Team availability, scope, and delivery estimate? | **UNKNOWN:** Procurement, configuration, migration, and integration lead time? | **UNKNOWN:** Same question. | **UNKNOWN:** Can current license/configuration satisfy the use case without a new platform? |
+| 3-year TCO | 7 | **UNKNOWN:** repo has no vendor prices or actual volume; estimate integrations, operations, audit and reviewer labor. | **UNKNOWN:** Estimate build, support, on-call, upgrades, failure/rework, and opportunity cost. | **UNKNOWN:** Quote, consumption, premium support, integration, and exit costs? | **UNKNOWN:** Same question. | **UNKNOWN:** Incremental licenses, admin, customization, and manual-process costs? |
+| Lock-in / exit cost | 4 | **INFERENCE low-to-medium** for Python reference code; adapted external-service coupling unknown. | **UNKNOWN:** Internal coupling and portability plan? | **UNKNOWN:** Data export, workflow/policy portability, contract exit terms? | **UNKNOWN:** Same question. | **UNKNOWN:** Workflow/data dependence on existing vendor and export paths? |
+| Differentiation: commodity vs differentiator | 4 | **Verified repo evidence:** policy/recovery examples are reference patterns; no customer differentiation evidence. | **UNKNOWN:** What proprietary workflow or outcomes differentiate? | **UNKNOWN:** Which product features are standard vs differentiating for us? | **UNKNOWN:** Same question. | **UNKNOWN:** Does native capability cover commodity need without custom differentiation? |
+| Compliance posture (SOC 2/ISO/GDPR/HIPAA as applicable) | 8 | **Known absent:** no production audit/retention/certification evidence. | **UNKNOWN:** Which controls, evidence, and compliance owner? | **UNKNOWN:** Applicable certifications, DPA, region, retention, subprocessors, BAA if required? | **UNKNOWN:** Same question. | **UNKNOWN:** Which current contractual attestations/configuration apply to this workload? |
+| Operational SLAs and support model | 6 | **Known absent:** no deployed service or named operational ownership. | **UNKNOWN:** Who supports app, dependencies, incidents and upgrades? | **UNKNOWN:** Contracted uptime, incident response, support tier, and exclusions? | **UNKNOWN:** Same question. | **UNKNOWN:** Existing CRM/IdP SLA and shared-responsibility boundary? |
+| Demonstrated business benefit | 0* | **Known absent:** no production outcome; response benchmark explicitly disclaims delivery benefit. | **UNKNOWN:** What controlled pilot establishes benefit? | **UNKNOWN:** What customer-specific measured outcome? | **UNKNOWN:** Same question. | **UNKNOWN:** What current-process baseline and native-workflow result? |
+
+*Business value is a required decision gate but weight is 0 in this technical-control screen because no business objective or baseline has been provided. Before funding, assign it a non-zero weight and re-normalize. **Do not calculate a weighted score with UNKNOWNs.**
+
+### Scoring and recommendation rule
+
+1. Score each criterion 0–5 only when supported by vendor docs, contract, code/test evidence, or a bounded evaluation; attach source and date. Leave unknowns blank, not zero.
+2. Compute weighted score only after critical unknowns are closed; use `sum(weight × score / 5)` for comparable percentage points. Report sensitivity across plausible weights and do not let averages compensate for a failed safety gate.
+3. **Non-compensatory gates:** no candidate is eligible for a write-enabled pilot until it demonstrates I1 (atomic or bounded monitored audit), I2 (tenant-qualified identity and CRM enforcement), and I3 (owned recovery, measurable backlog, agreed RPO/RTO) for the actual topology. Require at-most-once and stale approval controls too.
+4. Compare total cost over three years with attempted-task volume, implementation, licenses, support, infrastructure, audit retention, security/compliance, reviewer labor, rework, and exit/migration. Current cost inputs are all **UNKNOWN**.
+5. **Conditional recommendation (high confidence):** Candidate A is not presently eligible for production adoption. Keep it as reference material and evaluate E first if native CRM/IdP functionality can meet the gates. Evaluate B only if material gaps remain and measured workflow value justifies owning a service. Evaluate C/D as procurement placeholders only after named products/SKUs and evidence are collected. No ranking among B/C/D/E can be justified today.
+
+## 7. Variant Re-evaluation
+
+### Inventory
+
+`artifacts/crm-variants/` contains exactly three files: `variants-results.json`, `variants-matrix.csv`, `variants-environment.json`. They are output artifacts, not implementation source. Sibling artifact directories include `artifacts/crm-validation/`, which contains CRM baseline validation outputs but is not a variant directory. The runnable source and tests are under `prototypes/crm_operational_copilot/variants/`: `claims.py`, `store_layout.py`, `recovery.py`, `race.py`, `implementations.py`, `run_experiment.py`, `test_claims.py`, `test_store_layout.py`, `test_recovery.py`, and `VARIANTS-FINDINGS.md`.
+
+| Variant | Design and tests/assertions | Claimed/actual demonstration | Status and verdict |
+|---|---|---|---|
+| baseline | Three independent SQLite files; S01–S17 scenario suite and N=50 separate-process claim stress (checked-in artifacts report five rounds). | Same-store CRM mutation+ledger transaction, independent audit/approval stores, recoverable audit lag. Direct local tests confirm normal path and injected S12 state: ledger persists while audit is empty. | Baseline implementation, not a variant proposal. **(b) Partially meets I1 by recovery design; violates strict atomic-or-bounded-monitored I1 and I3.** |
+| `store-layout-b` | One SQLite file/connection; adapters share connection, defer commits and use savepoint around CRM transaction; execution service commits only on completed result and rolls back unresolved. Tests inject approval state failure and audit failure and assert CRM record/ledger/audit rollback and APPROVED state. [store_layout.py](../../prototypes/crm_operational_copilot/variants/store_layout.py#L19-L60), [tests](../../prototypes/crm_operational_copilot/variants/test_store_layout.py#L24-L76). | **Verified by direct rerun:** both rollback tests pass. Checked assertions confirm one connection/path and three tables; N=50 variant claim test passes. It demonstrates atomic rollback for injected exceptions while all participants use the same SQLite connection. It does not establish power-loss durability, external CRM integration, tamper evidence, multi-host behavior, or recovery operations. | Comparative experiment only; baseline remains default per [VARIANTS-FINDINGS.md](../../prototypes/crm_operational_copilot/variants/VARIANTS-FINDINGS.md#L5-L8). **(b) Partially closes the specific local failure gap; moves it to the assumption that CRM mutation, approval, and audit all share one transactional SQLite resource.** |
+| `recovery-b` | In `EXECUTING` with no ledger, recovery invalidates approval with variant-only reason `crash_no_write`, clears execution ID, and requires a fresh review. One focused S10 test. [recovery.py](../../prototypes/crm_operational_copilot/variants/recovery.py#L11-L42), [test](../../prototypes/crm_operational_copilot/variants/test_recovery.py#L14-L31). | Demonstrates a more conservative local state transition after no-write recovery; not an operational scheduler, RPO/RTO, or audit atomicity mechanism. | Comparative policy alternative, not adopted. **(c) Does not close I1 or I3; changes retry policy only.** |
+| `claim-b` | Uses `BEGIN IMMEDIATE`, reads state, then updates; claim race test. [claims.py](../../prototypes/crm_operational_copilot/variants/claims.py#L11-L32), [test_claims.py](../../prototypes/crm_operational_copilot/variants/test_claims.py#L10-L22). | N=50 tested single winner, same assertion as baseline; no production latency or multi-host comparison. | Comparative claim-mechanism experiment. **(c) Does not close I1–I3; I4 remains locally demonstrated.** |
+| `broken-control` | Deliberately unsafe read-then-write with a 50-party barrier and no transaction; negative-control test. [claims.py](../../prototypes/crm_operational_copilot/variants/claims.py#L35-L58), [race.py](../../prototypes/crm_operational_copilot/variants/race.py#L22-L73). | Test confirms more than one accepted claim; checked-in matrix records all 50 in the recorded run. | Negative control only, not an option. **(c) Fails I4 by design; does not close I1–I3.** |
+
+### I1–I3 comparison: baseline vs. shared transaction
+
+| Invariant | Baseline | `store-layout-b` | Decision |
+|---|---|---|---|
+| I1 audit persistence | CRM+ledger commit first; audit can fail and leaves unresolved ledger-without-audit until manual recovery. No bound/monitor. | Injected audit write exception rolls back transaction across the shared SQLite connection; test returns persisted record version to 1, ledger empty, audit empty, approval APPROVED. | **INFERENCE:** closes the tested local audit-failure boundary if all data is truly in one SQLite transactional resource. It does not prove the invariant for external CRM/audit systems or crashes after a durable commit but before caller acknowledgment. The variant does not implement an outbox or bounded monitored reconciliation; I1 is not established generally. |
+| I2 tenant resolution | Principal-keyed, tenant-blind. | Reuses the same `LocalIdentityProvider`; no tenant-keying change. | Both **violate I2**. |
+| I3 operational recovery | `recover()` is manual/on-demand; no owner or target RPO/RTO. | No scheduler/owner/RPO/RTO added; transaction rollback changes tested outcome only. | Both **fail to establish I3**. |
+
+**Central I1 verdict:** The shared-transaction variant **partially closes / moves the gap**, verdict **(b)**. It does more than merely document recovery: the runnable tests demonstrate rollback for the two injected local store failures while a shared SQLite connection is in one deferred-commit operation. But I1 as specified requires either an atomic boundary valid for the real topology or bounded, monitored reconciliation. The variant’s guarantee depends on CRM, approval, and audit data sharing that SQLite transaction; the target architecture explicitly contemplates external CRM and audit services, for which this transaction cannot be assumed. The experiment also reports process crash/power-loss durability and operational recovery as unproven: [VARIANTS-FINDINGS.md](../../prototypes/crm_operational_copilot/variants/VARIANTS-FINDINGS.md#L42-L46). Therefore it does not establish I1 for deployment.
+
+The variant test suite is runnable with repository dependencies and ran successfully: **5 passed in 6.89s** (raw output in Section 4). The experiment runner exists at [run_experiment.py](../../prototypes/crm_operational_copilot/variants/run_experiment.py), but the canonical artifact-check command produced no captured output/status in this session; exact reproducibility of the committed CSV/JSON is left **UNKNOWN** until CI or a captured rerun confirms byte equality. No added dependency/configuration was needed for direct pytest tests.
+
+**Does this change the comparison recommendation?** No. It improves the reference evidence for a single-store transactional topology, but does not change Candidate A’s ineligibility under I2/I3, does not supply production evidence, and is not an adopted design. It can inform a bounded architecture experiment if the real CRM and audit boundary can participate in the same transaction; otherwise evaluate an outbox/reconciliation design.
+
+## 8. Open Questions
+
+| Unknown | What resolves it | Owner role |
+|---|---|---|
+| **UNKNOWN:** exact problem/use case, “why now,” and whether CRM is the target | Name one workflow, user cohort, current process, failure cost, success metric, and alternatives in scope. | Product/business sponsor |
+| **UNKNOWN:** tenant model and identity namespace | Identify IdP subject format, tenant claim authority, guest/service principals, lifecycle and cross-tenant denial requirements; specify test cases. | Security + identity platform |
+| **UNKNOWN:** audit atomicity/retention/legal requirements | Data classification, control mapping, retention/deletion/legal hold, tamper evidence, and whether bounded audit lag is acceptable. | Compliance + data owner |
+| **UNKNOWN:** real CRM conditional-write and idempotency semantics | Non-production CRM API contract and tests for version/ETag precondition, retries, idempotency, timeout-after-commit, and permission enforcement. | CRM owner |
+| **UNKNOWN:** recovery RPO/RTO and ownership | Business impact analysis, unresolved backlog SLA, on-call team, alert path, retry limits, restore runbook and recovery exercise. | Operations/SRE + product |
+| **UNKNOWN:** 3-year cost and ROI | Representative task volumes, vendor quotes, reviewer minutes, integration estimates, failure/rework cost, and measured baseline. | Finance + product |
+| **UNKNOWN:** applicable SOC 2/ISO/GDPR/HIPAA obligations | Jurisdiction, data type, processor/controller roles, vendor evidence and contractual requirements. | Compliance/legal |
+| **UNKNOWN:** Candidate C/D product and SKU capabilities | Procurement shortlist; official product docs, architecture/security pack, contract/SLA, sandbox tests, export/exit terms. | Procurement + security + platform |
+| **UNKNOWN:** shared-transaction crash behavior and operational durability | Kill-process at each boundary, restart, file-system/power-loss proxy, backup/restore, concurrent reader/writer tests, and verify committed state/audit invariants. | Data platform + operations |
+| **UNKNOWN:** repository canonical evidence map | Reconcile README, REPO-MAP, VALIDATION-CONTRACT, architecture pages and artifacts; add CI consistency checks. | Architecture/documentation owner |
+
+## 9. Recommended Next Step
+
+Run a **bounded, non-production architecture validation**, not an adoption pilot: choose one CRM workflow and one candidate topology, then spend no more than two weeks establishing requirements and testing identity, approval, mutation, audit, and recovery with representative but non-sensitive test data. Compare native CRM/IdP capability first; include the single-file variant only if the real write and audit boundary can share a transaction, otherwise test a durable outbox pattern. Keep real writes disabled until I1, I2, I3, I4, and I5 acceptance tests pass against the actual non-production interfaces.
+
+**Stop criteria:** stop or redesign if tenant-qualified identity cannot be enforced end-to-end; a committed mutation can escape durable audit beyond an explicitly approved and monitored bound; recovery cannot meet a product/operations-approved RPO/RTO; CRM idempotency/conditional update semantics cannot prevent duplicate/stale writes; or measured business value does not exceed an agreed threshold after 3-year TCO. These criteria are **INFERENCE** and require owners to set actual thresholds before the exercise. **Recommendation confidence: high** that this is the right next evidence step; **low** on duration and thresholds until owners and scope are named.
+
+## 10. Appendix: Commands, Environment, Anomalies
+
+### Environment
+
+- OS: Windows 11 (`platform win32` in test output).
+- Python: CPython 3.14.6 from repository `.venv`.
+- pytest 9.1.1; SQLite variant artifact records SQLite 3.50.4.
+- `pyproject.toml` declares Python >=3.10 and pytest as a development dependency. Hypothesis is not declared; the added generated property-style check uses the standard library.
+- These are local fake-backed tests only. No deployment, live IdP, CRM, vendor service, or customer data was used.
+
+### Commands run
+
+```powershell
+./.venv/Scripts/python.exe -m pytest -v tests/test_crm_decision_contracts.py
+./.venv/Scripts/python.exe -m pytest -v prototypes/crm_operational_copilot/variants
+./.venv/Scripts/python.exe -m pytest -q tests/test_crm_validation_scenarios.py -k test_contract_scenario_ids_persist_expected_state
+./.venv/Scripts/python.exe -m pytest -v tests/test_crm_validation_scenarios.py -k S12
+./.venv/Scripts/python.exe -u prototypes/crm_operational_copilot/variants/run_experiment.py --output-dir "$env:TEMP\crm-variants-rerun"
+./.venv/Scripts/python.exe scripts/check_crm_variants.py
+```
+
+### Anomalies and scope limits
+
+- Focused contract test command completed: **8 passed, 8 xfailed**. The first pre-property-refinement run was **8 passed, 7 xfailed**; the report uses the final rerun only.
+- Variant tests completed: **5 passed**.
+- S12 isolated baseline check passed; 17 deterministic baseline scenario cases passed. The full verbose scenario file started the stress rounds but ended without a summary in terminal capture; do not count the full suite as completed.
+- Variant matrix generator/checker invocations produced no captured final output/status. Direct tests succeeded, but byte-for-byte regeneration is not claimed.
+- One initial terminal attempt used PowerShell invocation syntax rejected in this environment; subsequent `./.venv/Scripts/python.exe` invocations worked. This was command-shell friction, not a Python/test failure.
+- Existing untracked user files (`ARCHITECTURE-REVIEW-v2.md`, `REVIEW-A-verify.md`, `REVIEW-B-invariants.md`, `coverage.json`) were left untouched.
+- No unsupported statements about vendor product capability, deployment behavior, production benchmark performance, regulatory compliance, or business context are made.

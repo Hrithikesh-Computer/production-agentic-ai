@@ -7,7 +7,8 @@ state, or application-level request correlation.
 ## Envelope Authentication
 
 Each envelope's HMAC-SHA256 authenticates `sequence`, `total_chunks`,
-`checksum`, `is_final`, `payload`, `merge_mode`, and `message_id`. The tag is
+`checksum`, `is_final`, `payload`, `merge_mode`, `message_id`, and the
+`message_digest` SHA-256 of the complete serialized response. The tag is
 computed with the caller-supplied shared key and compared in constant time.
 CRC32 detects accidental corruption; it is not an authentication mechanism.
 The key must be bytes and at least 16 bytes long.
@@ -19,11 +20,15 @@ rotation, or protection from an authorized key holder.
 
 ## Message IDs and Replay Window
 
-Producers must never reuse a `message_id` while an earlier message with that ID
-is retained by the receiver. A message ID is authenticated per chunk, but the
-protocol does not sign a full-message digest or length; reusing an ID across
-different in-flight logical messages can therefore combine chunks. The receiver
-rejects late chunks for completed IDs while their tombstones remain.
+Producers should not reuse a `message_id` while an earlier message with that ID
+is retained by the receiver. The receiver binds all chunks in a session to the
+first authenticated `message_digest` and rejects a different digest, so chunks
+from distinct responses cannot be combined merely by reusing an ID. Producer
+construction computes the digest from the complete serialized response; the
+receiver does not recompute it from assembled bytes. The digest is not a
+substitute for HMAC authentication. Message IDs are limited to 256 UTF-8
+bytes. The receiver rejects late chunks for completed IDs while their
+tombstones remain.
 
 Completed IDs are kept in a bounded tombstone set for 3,600 seconds, with at
 most 4,096 tombstones. The oldest tombstone is evicted first if the set is full.
@@ -36,7 +41,8 @@ The session manager defaults to at most 1,024 concurrent sessions. Incomplete
 sessions expire 300 seconds after their last successfully accepted new chunk;
 identical duplicates do not refresh this idle timer. Expiry is lazy and runs on
 the next manager intake. Active sessions share a
-total payload-byte cap of 268,435,456 bytes (256 MiB). Each `Reassembler`
+total accounted-memory cap of 268,435,456 bytes (256 MiB). This counts active
+message-ID bytes, payload bytes, and per-chunk overhead. Each `Reassembler`
 accepts at most 10,000 chunks and 16,000,000 payload bytes.
 
 `ReassemblySessionManager` is not thread-safe. Concurrent calls for the same
@@ -47,9 +53,10 @@ Exceptions from `request_retry` and `request_full_buffer` propagate to the
 caller. Retry counters and fallback state remain unchanged, so the next poll
 invokes the callback again. Both callbacks must be idempotent.
 
-The manager's aggregate cap charges payload bytes plus a conservative fixed
-`OVERHEAD_PER_CHUNK = 96` bytes for every retained chunk, including empty
-chunks. The per-message payload limit remains payload-only. The constant is
+The manager's aggregate cap charges payload bytes, active message-ID bytes,
+plus a conservative fixed `OVERHEAD_PER_CHUNK = 96` bytes for every retained
+chunk, including empty chunks. The per-message payload limit remains
+payload-only. The constant is
 derived from measured resident-memory deltas: the largest observed
 `memory_per_chunk - payload_size` for payload sizes of at least two bytes was
 86.97 bytes, measured with distinct payload content per chunk for the new

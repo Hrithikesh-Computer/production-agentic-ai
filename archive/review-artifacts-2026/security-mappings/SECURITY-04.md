@@ -1,6 +1,6 @@
 # Security Mapping: Document 04, FinTech Governance and Risk Platform
 
-Source: `01-agent-architecture/04-fintech-governance-risk-agentic-platform.md`.
+Source: [`archive/design-sketches-2026/04-fintech-governance-risk-agentic-platform.md`](../../design-sketches-2026/04-fintech-governance-risk-agentic-platform.md).
 
 ## Actions this agent can take
 

@@ -8,6 +8,16 @@
 **Status:** Research note / hypothesis; no local benchmark or runnable context manager is present.
 **Evidence boundary:** The repository has no representative multi-turn context workload or production context manager. The current evidence is limited to article-level reasoning and the repository's explicit scope guard; it does not measure latency, cost, retrieval, caching, or user-observed quality.
 
+## Evidence alignment rule
+
+This article intentionally separates design reasoning from executable code.
+
+- Implemented locally: the repository has no context-lifecycle runtime or benchmark; the codebase does not contain a production context manager
+- Conceptual or future-state: the lifecycle design for acquisition, classification, retrieval, externalization, and re-evaluation is a model for future implementation work
+- Archived or historical: earlier context or memory experiments that were removed or superseded are not current guidance
+
+The conclusion is therefore architectural and hypothesis-driven rather than a present implementation claim.
+
 ## Decision Summary
 
 The real production problem is not that an agent has too many tokens in a single prompt; it is that context has no lifecycle and therefore accumulates without explicit rules for preservation, transformation, retrieval, or discard.

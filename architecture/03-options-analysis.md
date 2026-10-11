@@ -35,6 +35,10 @@ For a single-process prototype, Option A is cheaper and may be sufficient to tes
 - Test action aggregation, revocation, stale approvals, record-version changes, retries, duplicate submissions, and policy-version changes.
 - Measure decision latency, availability, policy rollout time, false allows/denies in an agreed test set, reviewer burden, and operational staffing before accepting this recommendation.
 
-## Evidence boundary
+## Evidence alignment rule
 
 The repository has a bounded in-process evaluator for principal/action/time grants, priority rules, and aggregation constraints ([authority policy](../04-reference-implementation/authority_policy.py)). It has no OPA/Cedar integration, cloud IAM gateway, CRM identity mapping, human-approval queue, or production policy service. The CRM prototype is static and read-only ([CRM evidence](../prototypes/crm_operational_copilot/EVIDENCE.md)). Recommendation remains a design hypothesis pending customer discovery and a policy-focused proof of concept.
+
+- Implemented locally: the bounded evaluator and deterministic local test evidence in the repo
+- Proposed design: the dedicated policy decision point, authority gateway, and cloud or vendor-specific enforcement model explored here
+- Not current guidance: any operational policy product claims or production deployment assumptions not backed by local repository evidence

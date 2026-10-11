@@ -17,6 +17,16 @@ These artifacts form a customer-world design exercise, not an implemented or dep
 
 All service/vendor mappings, security controls, numeric NFR examples, and recommendations are provisional until confirmed with a customer. The CRM prototype contains a narrow in-memory approval simulation; it does not implement the proposed distributed architecture or connect to a real CRM.
 
+## Evidence-alignment rule for this bundle
+
+These architecture documents are deliberately separated from the checked-in code. The valid mapping is:
+
+- Implemented locally: the Python reference implementation under [../04-reference-implementation](../04-reference-implementation) and the deterministic CRM prototype under [../prototypes/crm_operational_copilot](../prototypes/crm_operational_copilot)
+- Proposed design: the enterprise CRM service, identity provider, queueing, operational ownership, and deployment architecture in this directory
+- Archived or historical: earlier review artifacts and dated design sketches that are not the active guidance for the current repo
+
+The architecture bundle describes what a customer-facing system might look like. It does not claim that those services, credentials, queues, or deployment components exist in this repository today.
+
 ## How to Review in 30 Minutes
 
 This is a proposed design plus local simulation, not a deployed CRM product.

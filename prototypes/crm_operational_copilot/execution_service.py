@@ -249,10 +249,10 @@ class CRMExecutionService:
         approve: bool,
         reviewer_scope: str,
     ) -> ExecutionResult:
-        at = self.clock()
         approval = self.approvals.get(approval_id)
         if approval is None:
             return self._result("missing", "approval_missing", approval_id)
+        at = max(self.clock(), approval.created_at)
         identity = self.identities.authorize(reviewer_id, reviewer_scope, at=at)
         if not identity.allowed:
             return self._result("denied", identity.reason, approval_id)
@@ -277,8 +277,18 @@ class CRMExecutionService:
             )
         except Exception as error:
             return self._result(
-                "rejected" if not approve else "unresolved",
-                reason or "approval_audit_pending",
+                "unresolved",
+                "approval_audit_pending",
+                approval_id,
+                audit_error=str(error),
+            )
+        try:
+            if not self.approvals.finalize_review(approval_id, approve):
+                raise OSError("approval review could not be finalized")
+        except Exception as error:
+            return self._result(
+                "unresolved",
+                "approval_review_finalize_pending",
                 approval_id,
                 audit_error=str(error),
             )
@@ -295,6 +305,62 @@ class CRMExecutionService:
         for approval in self.approvals.unresolved():
             execution_id = approval.execution_id
             if execution_id is None:
+                if (
+                    approval.state == "AUDIT_PENDING"
+                    and approval.reviewed_at is not None
+                ):
+                    approve = approval.approved_at is not None
+                    event_type = "approval_approved" if approve else "approval_rejected"
+                    state_after = "APPROVED" if approve else "REJECTED"
+                    existing_events = self.audit.events_for_approval(
+                        approval.approval_id
+                    )
+                    review_events = [
+                        event
+                        for event in existing_events
+                        if event.event_type == event_type
+                        and event.state_after == state_after
+                    ]
+                    try:
+                        if not review_events:
+                            self.audit.write(
+                                self._audit_event(
+                                    approval,
+                                    None,
+                                    approval.reviewed_at,
+                                    event_type=event_type,
+                                    state_before="PENDING",
+                                    state_after=state_after,
+                                    crm_record_version=approval.record_version,
+                                    reason=None if approve else "reviewer_denied",
+                                    reconciled=True,
+                                )
+                            )
+                        else:
+                            for event in review_events:
+                                self.audit.mark_reconciled(event.audit_id)
+                        if not self.approvals.finalize_review(
+                            approval.approval_id, approve
+                        ):
+                            raise OSError("approval review could not be finalized")
+                    except Exception as error:
+                        outcomes.append(
+                            self._result(
+                                "unresolved",
+                                "approval_audit_pending",
+                                approval.approval_id,
+                                audit_error=str(error),
+                            )
+                        )
+                        continue
+                    outcomes.append(
+                        self._result(
+                            "completed" if approve else "rejected",
+                            "recovered_review_audit",
+                            approval.approval_id,
+                        )
+                    )
+                    continue
                 outcomes.append(
                     self._result(
                         "unresolved", "missing_execution_id", approval.approval_id

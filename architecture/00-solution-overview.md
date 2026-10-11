@@ -30,6 +30,16 @@ The original CRM CLI has static mock records, deterministic action selection, lo
 
 The C4 views and subsequent decisions describe a **proposed target**. The SQLite baseline is a local deterministic implementation, not the enterprise identity provider, live CRM connector, deployed authority gateway, model service, distributed approval queue, or operational audit service.
 
+## Evidence alignment rule
+
+This architecture overview intentionally separates implemented behavior from proposed infrastructure.
+
+- Implemented locally: the deterministic SQLite validation baseline, the bounded authority evaluator, and the mock CRM read/write examples in the repo
+- Proposed design: the customer identity provider, the production approval gateway, the CRM and audit service topology, the deployment layout, and ownership model shown in the architecture bundle
+- Not current guidance: older review artifacts and historical design sketches that were superseded by the current repo boundary
+
+The reason this matters is simple: a diagram or proposal can describe a production pattern without claiming that the repository contains that production service today.
+
 ## Local validation status
 
 | Status | Scope |

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import uuid
 from dataclasses import dataclass
 
@@ -35,11 +36,18 @@ def build_envelopes(
                 is_final=True,
                 message_id=active_message_id,
                 authentication_key=authentication_key,
+                message_digest=hashlib.sha256(payload_bytes).hexdigest(),
             )
         ]
 
     chunk_bytes_list = semantic_split(payload_bytes, policy.max_chunk_bytes)
-    merge_mode = "json-object" if is_json_object(payload_bytes) else "concat"
+    message_digest = hashlib.sha256(payload_bytes).hexdigest()
+    merge_mode = (
+        "json-object"
+        if is_json_object(payload_bytes)
+        and all(is_json_object(chunk) for chunk in chunk_bytes_list)
+        else "concat"
+    )
     total_chunks = len(chunk_bytes_list)
     return [
         WireEnvelope.from_bytes(
@@ -50,6 +58,7 @@ def build_envelopes(
             message_id=active_message_id,
             authentication_key=authentication_key,
             merge_mode=merge_mode,
+            message_digest=message_digest,
         )
         for index, chunk_bytes in enumerate(chunk_bytes_list)
     ]

@@ -100,9 +100,18 @@ class SingleFileApprovalsStore(ApprovalsStore):
                 reason TEXT NULL CHECK(reason IN (
                     'expired','stale','revoked','policy_changed','scope')),
                 execution_id TEXT NULL UNIQUE,
-                approval_version INTEGER NOT NULL DEFAULT 1
+                approval_version INTEGER NOT NULL DEFAULT 1,
+                reviewed_at INTEGER NULL
             )"""
         )
+        columns = {
+            row["name"]
+            for row in self.connection.execute("PRAGMA table_info(approvals)")
+        }
+        if "reviewed_at" not in columns:
+            self.connection.execute(
+                "ALTER TABLE approvals ADD COLUMN reviewed_at INTEGER NULL"
+            )
         self.connection.commit()
 
     def close(self) -> None:

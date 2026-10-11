@@ -227,7 +227,7 @@ def run(output_directory: Path) -> int:
 
     output_directory.mkdir(parents=True, exist_ok=True)
     matrix_path = output_directory / "variants-matrix.csv"
-    with matrix_path.open("w", encoding="utf-8", newline="") as file:
+    with matrix_path.open("w", encoding="utf-8", newline="\n") as file:
         writer = csv.DictWriter(
             file,
             fieldnames=(
@@ -262,9 +262,10 @@ def run(output_directory: Path) -> int:
         },
         "variants": result_variants,
     }
-    (output_directory / "variants-results.json").write_text(
-        json.dumps(results, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    with (output_directory / "variants-results.json").open(
+        "w", encoding="utf-8", newline="\n"
+    ) as result_file:
+        result_file.write(json.dumps(results, indent=2, sort_keys=True) + "\n")
     environment = {
         "python_version": platform.python_version(),
         "python_implementation": platform.python_implementation(),
@@ -273,9 +274,12 @@ def run(output_directory: Path) -> int:
         "sqlite_version": sqlite3.sqlite_version,
         "local_fakes_only": True,
     }
-    (output_directory / "variants-environment.json").write_text(
-        json.dumps(environment, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    with (output_directory / "variants-environment.json").open(
+        "w", encoding="utf-8", newline="\n"
+    ) as environment_file:
+        environment_file.write(
+            json.dumps(environment, indent=2, sort_keys=True) + "\n"
+        )
 
     counts = {
         key: sum(row["status"] == key for row in all_rows)

@@ -204,22 +204,24 @@ The repository contains two different kinds of material, and readers should not 
 Read its maturity in four layers:
 
 1. **Current:** research articles, prompts, templates, and conceptual Mermaid diagrams.
-2. **Implemented reference slices:** adaptive-response policy, UTF-8-safe chunking, authenticated envelopes (CRC32 plus HMAC-SHA256), bounded reassembly, message-scoped session retry/fallback; plus a separate bounded authority evaluator for principal/action matching, grant time bounds, revocation, and policy priority. These have local tests, CI, and static checks; the adaptive response slice also has a demo.
+2. **Implemented reference slices:** adaptive-response policy, UTF-8-safe chunking, authenticated envelopes (CRC32, HMAC-SHA256, and whole-response SHA-256 digest), bounded reassembly and message-scoped retry/fallback; a separate bounded authority evaluator; an incremental bounded NDJSON decoder; and a local SQLite CRM approval workflow with audit recovery. These have local tests, CI, and static checks; the adaptive response slice also has a demo. The CRM prototype is not a live integration.
 3. **Future reference extensions:** optional experiments or adapters, added only when a specific article and reproducible test justify them.
 4. **Potential production architecture:** servers, models, databases, queues, clients, telemetry backends, and deployment systems discussed as context only until code, dependencies, tests, and CI implement them.
 
 ### Current implemented surface
 
-The code that is actively present and testable in the repo today is intentionally small and local. The adaptive-response-filter modules implement the wire contract, chunking policy, checksum validation, and reassembly logic. A separate `04-reference-implementation/authority_policy.py` module evaluates a bounded principal/action/time grant against timestamped revocation and priority rules; it does not implement semantic intent or delegation.
+The code that is actively present and testable in the repo today is intentionally local. The adaptive-response-filter modules implement the wire contract, chunking policy, integrity validation, digest-bound reassembly, and session limits. A separate `04-reference-implementation/authority_policy.py` module evaluates a bounded principal/action/time grant against timestamped revocation and priority rules; it does not implement semantic intent or delegation. The repository also has an incremental NDJSON decoder and a SQLite-backed CRM workflow validation prototype.
 
 At the moment, the local implementation includes:
 
-- a validated `WireEnvelope` contract with CRC32 checksums and HMAC-SHA256 authentication
+- a validated `WireEnvelope` contract with CRC32 checksums, HMAC-SHA256 authentication, and an authenticated whole-response SHA-256 digest
 - a `DeliveryPolicy` that decides whether to chunk
 - a `semantic_split()`/`_fixed_size_split()` chunking path
-- a bounded single-message `Reassembler`, plus `ReassemblySession` timeout/retry/fallback behavior and a manager for interleaved message IDs
+- a bounded single-message `Reassembler`, plus `ReassemblySession` timeout/retry/fallback behavior and a manager with session/TTL/tombstone limits and aggregate memory accounting
 - a small demo script and pytest suite
 - a bounded authority policy evaluator with behavior tests under `tests/`
+- an incremental bounded NDJSON decoder with strict JSON-object validation
+- a local SQLite CRM approval workflow prototype with conditional claims, live authority/policy checks, audit recovery, and fault-injection validation; it has no live CRM or identity-provider integration
 
 This local implementation is deliberately not a full runtime stack. It does not require FastAPI, Pydantic, Redis, Postgres, a browser client, or a TypeScript service to run the tests and demo in this repository. The checked-in pytest suite and demo run against the local Python implementation only; no database, queue, HTTP service, or external transport layer is required for the current execution boundary.
 
@@ -440,14 +442,14 @@ This repository contains engineering articles and a small executable reference s
 
 - The checked-in runtime code is the standard-library Python module under `04-reference-implementation/adaptive-response-filter/`. `pyproject.toml` declares Python `>=3.10` and no runtime package dependencies.
 - The optional `dev` extra supplies pytest, Ruff, and mypy. Setuptools builds the project metadata; it does not turn the flat reference files into a production service package.
-- GitHub Actions runs on Ubuntu with Python 3.10, installs the development extra, then runs Ruff, mypy, pytest, and the standalone demo.
+- GitHub Actions runs on Ubuntu with Python 3.10 and 3.14, installs hash-locked development dependencies, then runs Ruff, pytest with coverage gates, per-file coverage checks, mutation checks, dependency auditing, Markdown/evidence checks, mypy, and the standalone demo.
 - Articles and diagrams are Markdown and Mermaid source. They do not require local database, model-serving, or transport services.
 
 ### Not active local dependencies
 
 FastAPI, LangGraph, Pydantic, Redis, PostgreSQL, OpenTelemetry, Docker, and an LLM provider are ecosystem options and future research context in this roadmap and in authoring prompts. They are not imported or started by the current reference implementation, and no Redis/PostgreSQL containers or credentials are needed to run the current tests.
 
-The response-delivery article discusses a broader browser and HTTP production system, but those integrations are not checked in. The local reference contract validates CRC32 and HMAC-SHA256, and `ReassemblySession` models timeout, retry, and full-buffer fallback through caller-provided callbacks. It does not connect those callbacks to a real transport, manage production keys, or implement client rendering. The implementation boundary is documented in `04-reference-implementation/README.md` and the response-delivery article.
+The response-delivery article discusses a broader browser and HTTP production system, but those integrations are not checked in. The local reference contract validates CRC32, HMAC-SHA256, and a whole-response SHA-256 digest; `ReassemblySession` models timeout, retry, and full-buffer fallback through caller-provided callbacks. It does not connect those callbacks to a real transport, manage production keys, or implement client rendering. The CRM workflow is a separate SQLite-backed local validation prototype, not a live vendor integration. The implementation boundary is documented in `04-reference-implementation/README.md`, `prototypes/crm_operational_copilot/README.md`, and the relevant articles.
 
 When adding a future dependency, service, or client, update this inventory in the same change as its package configuration, local setup, CI, and article boundary. Mentioning a technology as a trade-off or research subject is not a declaration that it is a required dependency.
 

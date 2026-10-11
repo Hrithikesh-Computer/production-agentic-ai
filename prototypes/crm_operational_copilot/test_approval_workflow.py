@@ -274,6 +274,27 @@ def test_connector_rechecks_record_version_before_mutation():
     assert workflow.crm.read_account("alice", "CUST-1001") == before
 
 
+def test_connector_rejects_expired_approval_at_expiry_boundary():
+    workflow, _ = _workflow()
+    proposal = _proposal(workflow)
+    workflow.review(proposal.proposal_id, reviewer="reviewer", approve=True, at=101)
+    approval_record = workflow._get_record(proposal.proposal_id)
+    before = workflow.crm.read_account("alice", "CUST-1001")
+
+    with pytest.raises(PermissionError, match="expired"):
+        workflow.crm.update_account(
+            actor="alice",
+            customer_id="CUST-1001",
+            field="account_owner",
+            value="M. Chen",
+            expected_version=proposal.expected_record_version,
+            at=proposal.expires_at,
+            approval_record=approval_record,
+        )
+
+    assert workflow.crm.read_account("alice", "CUST-1001") == before
+
+
 def test_expired_approval_and_replay_are_denied():
     workflow, _ = _workflow()
     proposal = _proposal(workflow)

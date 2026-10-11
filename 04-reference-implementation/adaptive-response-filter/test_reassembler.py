@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 import pytest
@@ -19,6 +20,7 @@ def _to_envelope(sequence, total, payload, is_final, merge_mode="json-object"):
         is_final=is_final,
         message_id="test-message",
         authentication_key=AUTH_KEY,
+        message_digest=hashlib.sha256(b"test-message").hexdigest(),
         merge_mode=merge_mode,
     ).to_dict()
 
@@ -93,6 +95,7 @@ def test_reassembler_rejects_message_id_change_without_mutating_state():
         is_final=False,
         message_id="first-message",
         authentication_key=AUTH_KEY,
+        message_digest=hashlib.sha256(b"first-message").hexdigest(),
         merge_mode="concat",
     )
     different_id = WireEnvelope.from_bytes(
@@ -102,6 +105,7 @@ def test_reassembler_rejects_message_id_change_without_mutating_state():
         is_final=True,
         message_id="different-message",
         authentication_key=AUTH_KEY,
+        message_digest=hashlib.sha256(b"different-message").hexdigest(),
         merge_mode="concat",
     )
 
@@ -322,6 +326,33 @@ def test_middleware_reassembles_json_object_fragments():
     for envelope in envelopes:
         assembled = reassembler.add_chunk(envelope)
 
+    assert assembled is not None
+    assert json.loads(assembled) == response
+
+
+def test_middleware_reassembles_tool_call_boundary_fragments():
+    response = {
+        "status": "ok",
+        "tool_calls": [
+            {"name": "lookup", "result": "x" * 45},
+            {"name": "summarize", "result": "y" * 45},
+            {"name": "recommend", "result": "z" * 45},
+        ],
+    }
+    envelopes = list(
+        filter_response(
+            response,
+            DeliveryPolicy(threshold_bytes=1, max_chunk_bytes=90),
+            authentication_key=AUTH_KEY,
+        )
+    )
+    reassembler = Reassembler(authentication_key=AUTH_KEY)
+
+    assembled = None
+    for envelope in envelopes:
+        assembled = reassembler.add_chunk(envelope)
+
+    assert len(envelopes) > 1
     assert assembled is not None
     assert json.loads(assembled) == response
 

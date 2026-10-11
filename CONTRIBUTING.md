@@ -39,6 +39,16 @@ Every substantive contribution should clarify whether it is:
 
 A contribution that adds a new article or architecture claim should also add or update the relevant evidence artifact. The repository is expressly trying to move from conceptual engineering writing to a more evidence-driven research posture without broadening into a full runtime or platform.
 
+### Article-to-code alignment rule
+
+Every article, ADR, and prototype note must declare which state it occupies:
+
+- implemented in the checked-in Python code or local prototype
+- explicitly conceptual or future-state only
+- archived historical material, not current guidance
+
+Contributions may not silently upgrade a conceptual discussion into a present capability. If the code does not exist, the article must say it is a hypothesis, proposal, or design sketch. If the implementation is local and bounded, the article must say so explicitly and avoid production or deployment claims.
+
 ## The Publishing Gate
 
 This is not optional and applies equally to every contributor, including the maintainer.
@@ -57,6 +67,8 @@ A new article is merged only if it includes at least one of:
 ---
 
 ## Submitting an Article
+
+The exact template below is the gate for new article submissions. Existing research notes and technical evidence reports may use a different structure when their file explicitly identifies that purpose; do not cite them as examples of a template-conformant article.
 
 1. **Open an issue first** with your proposed hypothesis — what you expect to find and why. This avoids duplicated or out-of-scope work before you invest time in it.
 2. **Follow the [Article Template](./ROADMAP.md#article-template) exactly**: Decision Summary, Problem, Motivation, Hypothesis, Background, Why the Obvious Solution Fails, Architecture, Trade-offs, Failure Modes, Reference Implementation, Experiment, Benchmark, Observations, Decision, Interview Questions, Further Reading. If a section genuinely doesn't apply, say so explicitly rather than omitting it.

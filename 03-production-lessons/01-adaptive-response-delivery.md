@@ -12,6 +12,16 @@
 
 **Implementation boundary:** The production investigation described here is broader than the executable code in this repository. The Python reference is a bounded slice for wire validation, chunk splitting, authenticated envelopes, and message-scoped retry and fallback behavior.
 
+## Evidence alignment rule
+
+This article is bounded to the repository's actual checked-in implementation and its synthetic measurements.
+
+- Implemented locally: the Python reference under [../04-reference-implementation/adaptive-response-filter](../04-reference-implementation/adaptive-response-filter) and the paced browser harness under [../benchmarks/response-delivery](../benchmarks/response-delivery)
+- Conceptual or future-state: the broader production serving stack, browser/client integration, and end-to-end delivery model remain design-level hypotheses, not implemented services
+- Archived or historical: earlier production claims or traces that are not present in the repo are not treated as repository evidence
+
+The article therefore reports a local delivery experiment and a design hypothesis, not a production deployment result.
+
 ## Executive Summary
 
 Most work on LLM serving optimizes inference: GPU scheduling, KV-cache management, batching, speculative decoding, attention kernels. But production systems do not end when the model finishes generating tokens; they end when the user can actually see useful output.

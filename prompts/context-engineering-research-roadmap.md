@@ -428,6 +428,8 @@ Follow the proposed structure from the master prompt (20 sections):
 19. Conclusion
 20. Future Work
 
+This 20-part structure is the internal research synthesis format, not the repository's publication template. Before submitting the work as an article, map and condense the evidence into the canonical 16 headings in `templates/article-template.md` and required by `CONTRIBUTING.md`; do not submit a 20-heading article as a substitute for that contract.
+
 ### Key Requirements
 
 - Draw evidence from Stages 1-6
@@ -435,6 +437,8 @@ Follow the proposed structure from the master prompt (20 sections):
 - Never present speculation as fact
 - Clearly distinguish observations, hypotheses, and proven principles
 - Identify unresolved questions and next steps
+- Keep a claim-to-source ledger with stable URL or document identifier, author/organization, publication date, source type, and the exact claim supported; distinguish primary research, vendor documentation, and secondary commentary.
+- Generalize and anonymize production incidents before drafting. Exclude client names, identifiers, prompts, proprietary metrics, and workflows under the repository's Anonymization Policy.
 
 ### Success Criteria
 

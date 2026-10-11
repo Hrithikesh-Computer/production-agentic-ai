@@ -62,10 +62,11 @@ The current defaults are:
 | Session idle TTL | 300 seconds | Releases abandoned partial messages; only a new chunk refreshes activity. |
 | Tombstone TTL | 3,600 seconds | Keeps completed IDs in the local replay window. |
 | Tombstone capacity | 4,096 | Bounds replay state; evict the oldest tombstone first at capacity. |
-| Aggregate active memory bytes | 268,435,456 bytes (256 MiB) | Caps payload plus a fixed 96-byte charge per retained chunk. Recompute the active sum on each intake to avoid a separately maintained counter drifting on duplicates, completion, or expiry; the scan is bounded by the session cap. The charge rounds the measured maximum untracked estimate of 86.97 bytes/chunk up to a multiple of 16. |
+| Aggregate active memory bytes | 268,435,456 bytes (256 MiB) | Caps payload, a fixed 96-byte charge per retained chunk, and retained active message-ID bytes. Recompute the active sum on each intake to avoid a separately maintained counter drifting on duplicates, completion, or expiry; the scan is bounded by the session cap. The charge rounds the measured maximum untracked estimate of 86.97 bytes/chunk up to a multiple of 16. |
 | Per-retained-chunk aggregate charge | 96 bytes | Conservative measured Python object and container overhead estimate; applies to empty chunks too. It does not alter the per-message payload-only limit. |
 | Chunks per message | 10,000 | Bounds per-message bookkeeping; a completed message leaves active session state. |
 | Payload bytes per message | 16,000,000 bytes | Bounds one reassembled payload independently of the aggregate cap. |
+| Message ID bytes | 256 UTF-8 bytes | Bounds identifiers retained by envelopes, active sessions, and replay tombstones. |
 | NDJSON record bytes | 1,048,576 bytes (1 MiB) | Bounds one decoder record before JSON parsing. |
 | Chunk threshold / chunk size | 128,000 / 64,000 bytes | Local `DeliveryPolicy` defaults for choosing full versus chunked delivery and splitting chunks. |
 | Retry timeout / retry count | 1.0 second / 1 | Local callback-driven retry defaults; the caller must poll, and there is no scheduler. |
@@ -74,10 +75,13 @@ Expiry is lazy: the next manager intake identifies and evicts expired sessions
 and tombstones. It does not run on a timer. An individual manager is configured
 with one authentication key, and session/tombstone dictionaries are keyed by
 `message_id`, not `(key_id, message_id)`. IDs therefore share one namespace
-within that manager. Producers must not reuse an ID while it is retained. This
-does not prevent mixing chunks from distinct logical messages that reuse the
-same ID; the current wire format has no full-message digest, and regression R4
-remains an explicit limitation.
+within that manager. The authenticated wire envelope includes a SHA-256 digest
+of the complete serialized response. A reassembler binds to the first digest
+and rejects a chunk carrying a different one, preventing chunks from distinct
+logical messages from being mixed when they reuse an ID. The receiver does not
+recompute the digest over assembled bytes; producer construction computes it
+from the complete response, and each digest value is authenticated by the
+existing envelope HMAC. This does not establish sender authorization.
 
 NDJSON decoding fails closed. Any parse, validation, size, UTF-8, or incomplete
 record error poisons the decoder and clears its pending bytes. Records already
@@ -89,8 +93,9 @@ poisoning error.
 ## Trade-offs
 
 - The defaults are conservative teaching/reference bounds, not capacity
-  recommendations. Python object overhead is not covered by the payload-byte
-  cap; local measurements are recorded in
+  recommendations. Python object overhead beyond payload bytes, fixed
+  per-chunk charge, and active message-ID bytes is not covered by the aggregate
+  accounting; local measurements are recorded in
   [protocol-guarantees.md](../../docs/protocol-guarantees.md).
 - Lazy cleanup avoids a worker thread or scheduler but means expiry is only
   observed during later intake.

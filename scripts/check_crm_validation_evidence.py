@@ -18,12 +18,16 @@ ARTIFACT_DIR = ROOT / "artifacts" / "crm-validation"
 HARNESS = CRM_DIR / "validation_harness.py"
 sys.path.insert(0, str(CRM_DIR))
 
-from validation_harness import read_contract_scenarios  # noqa: E402
+from validation_harness import (  # noqa: E402
+    read_contract_scenarios,
+    source_snapshot_sha256,
+)
 
 COMMITTED_OUTPUTS = ("results.json", "scenario-matrix.csv")
 ENVIRONMENT_FIELDS = {
     "commit",
     "python_version",
+    "source_snapshot_sha256",
     "started_at_utc",
     "completed_at_utc",
 }
@@ -72,6 +76,10 @@ def validate_environment(path: Path) -> None:
         "python_version"
     ]:
         raise ValueError("environment.json python_version must be non-empty")
+    if metadata["source_snapshot_sha256"] != source_snapshot_sha256():
+        raise ValueError(
+            "environment.json source snapshot does not match current validation inputs"
+        )
     for field in ("started_at_utc", "completed_at_utc"):
         value = metadata[field]
         if not isinstance(value, str) or not value.endswith("Z"):
